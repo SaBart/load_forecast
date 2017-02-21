@@ -3,45 +3,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import csv
 from json import loads
 from urllib.request import urlopen
 
 # loads data
 def load(path='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/household_power_consumption.csv'):
 	data=pd.read_csv(path,header=0,sep=";",usecols=[0,1,2], names=['date','time','load'],dtype={'load': np.float64},na_values=['?'], parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
-	data['date']=pd.DatetimeIndex(data['date']).strftime('%Y%m%d') # reformat dates
 	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
 	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
 	data=pd.pivot_table(data,index=['date','hour'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
 	data=data.applymap(lambda x:(x*1000)/60) # convert kW to Wh 
 	return data
-
-def download_day(date):
-	request='http://api.wunderground.com/api/8cc2ef7d44313e70/history_'+date+'/q/ORY.json' # construct request
-	stream=urlopen(request) # open stream
-	data=stream.read().decode('utf-8') # read data from stream
-	stream.close() # close stream
-	return loads(data) # parse json data
-
-date='20061216'
-
-def download_weather(dates):
-	data=pd.DataFrame(data=None,index=pd.MultiIndex.from_product([dates,range(24)], names=['date','hour']),columns=['temp','psr','hum','prc','wspd','wdir'])
-	for date in dates: # for each date
-		obs=[o for o in download_day(date)['history']['observations'] if o['metar'].startswith('METAR')] # get all METAR format observations
-		for o in obs: # for each observation
-			year = o['date']['year'] # year
-			month = o['date']['mon'] # month
-			day = o['date']['mday'] # day
-			hour = o['date']['hour'] # hour
-			min = o['date']['min'] # minute
-			temp = o['tempm'] # temperature [C]
-			psr = o['pressurem'] # pressure [mBar]=10^2[Pa]
-			hum = o['hum'] # humidity [%]
-			prc=o['precipm'] # precipitation [mm]
-			wspd = o['wspdm'] # wind speed [kmph]
-			wdir = o['wdird'] # wind direction [deg]
-			
 
 # saves data to csv
 def save(data,directory,name):

@@ -1,4 +1,4 @@
-'''HOLT-WINTER'S EXPONENTIAL SMOOTHING'''
+'''EXPONENTIAL SMOOTHING'''
 
 import numpy as np
 import matplotlib.pyplot as plt

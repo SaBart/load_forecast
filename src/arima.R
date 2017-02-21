@@ -35,7 +35,8 @@ arima_v=function(train,test,batch=7,freq=7){
   return(test_pred)
 }
 
-dir='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/' # directory containing data
+dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data
+
 train=read.csv(paste(dir,'train.csv', sep=''),header=TRUE,sep=',',dec='.') # load train set
 test=read.csv(paste(dir,'test.csv', sep=''),header=TRUE,sep=',',dec='.') # load test set
 date_train=train$date # extract date column from train set
@@ -47,7 +48,7 @@ test_pred_h=arima_h(train,test,batch=28,freq=24) # horizontal prediction
 rownames(test_pred_h)=date_test # set "index"
 write.csv(test_pred_h,file='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_rh.csv',quote = FALSE) # write predictions
 
-test_pred_v=arima_v(train,test,batch=28,freq=24) # vertical predictions
+test_pred_v=arima_v(train,test,batch=28,freq=7) # vertical predictions
 rownames(test_pred_v)=date_test # set "index"
 write.csv(test_pred_v,file='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_rv.csv') # write results
 
@@ -58,7 +59,7 @@ for (i in 0:6){ # for each day
   date_test=test$date # extract date column from test set
   train=train[ , !names(train) %in% c('date')] # drop date column from train set
   test=test[ , !names(test) %in% c('date')] # drop date column from test set
-  test_pred_hw=arima_h(train,test,batch=28,freq=24) # horizontal predictions for this day
+  test_pred_hw=arima_h(train,test,batch=4,freq=4) # horizontal predictions for this day
   rownames(test_pred_hw)=date_test # set "index"
   write.csv(test_pred_hw,file=paste(dir,'arima_rh_',i,'.csv',sep='')) # write results
 }
@@ -70,7 +71,7 @@ for (i in 0:6){ # for each day
   date_test=test$date # extract date column from test set
   train=train[ , !names(train) %in% c('date')] # drop date column from train set
   test=test[ , !names(test) %in% c('date')] # drop date column from test set
-  test_pred_vw=arima_v(train,test,batch=28,freq=24) # horizontal predictions for this day
+  test_pred_vw=arima_v(train,test,batch=4,freq=4) # horizontal predictions for this day
   rownames(test_pred_vw)=date_test # set "index"
   write.csv(test_pred_vw,file=paste(dir,'arima_rv_',i,'.csv',sep='')) # write results
 }

@@ -1,4 +1,4 @@
-'''HOLT-WINTER'S EXPONENTIAL SMOOTHING'''
+'''ARIMA MODELS'''
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -80,8 +80,8 @@ train,test=dp.split_train_test(data=targets, test_size=0.25, base=7)
 dp.save(data=train,directory=data_dir,name='train')
 dp.save(data=test,directory=data_dir,name='test')
 
-train=pd.read_csv(dir+'train.csv',index_col=0)
-test=pd.read_csv(dir +'test.csv',index_col=0)
+train=pd.read_csv(data_dir+'train.csv',index_col=0)
+test=pd.read_csv(data_dir +'test.csv',index_col=0)
 
 
 dp.split_save(train, nsplits=7, directory=data_dir, name='train')
