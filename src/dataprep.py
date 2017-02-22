@@ -3,12 +3,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import csv
-from json import loads
-from urllib.request import urlopen
+
 
 # loads data
-def load(path='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/household_power_consumption.csv'):
+def load(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
 	data=pd.read_csv(path,header=0,sep=";",usecols=[0,1,2], names=['date','time','load'],dtype={'load': np.float64},na_values=['?'], parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
 	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
 	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
@@ -17,13 +15,13 @@ def load(path='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/household
 	return data
 
 # saves data to csv
-def save(data,directory,name):
-	data.to_csv(directory+name+'.csv',header=True)
+def save(data,path):
+	data.to_csv(path,header=True)
 	
 # splits data according to weekdays and saves them 
-def split_save(data,nsplits,directory,name):
+def split_save(data,nsplits,paths):
 	for i,chunk in split(data,nsplits=nsplits).items(): # for each day
-		save(chunk,directory,name+'_'+str(i)) # save under special name
+		save(chunk,paths[i]) # save under special name
 	
 # combines minute time intervals into hours
 def m2h(data,nan='keep'):

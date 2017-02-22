@@ -44,14 +44,17 @@ date_test=test$date # extract date column from test set
 train=train[ , !names(train) %in% c('date')] # drop date column from train set
 test=test[ , !names(test) %in% c('date')] # drop date column from test set
 
+# horizontal predictions
 test_pred_h=arima_h(train,test,batch=28,freq=24) # horizontal prediction
 rownames(test_pred_h)=date_test # set "index"
 write.csv(test_pred_h,file='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_rh.csv',quote = FALSE) # write predictions
 
+# vertical predictions
 test_pred_v=arima_v(train,test,batch=28,freq=7) # vertical predictions
 rownames(test_pred_v)=date_test # set "index"
 write.csv(test_pred_v,file='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_rv.csv') # write results
 
+# horizontal predictions for each day separately
 for (i in 0:6){ # for each day
   train=read.csv(paste(dir,'train_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load train set
   test=read.csv(paste(dir,'test_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load test set
@@ -59,11 +62,12 @@ for (i in 0:6){ # for each day
   date_test=test$date # extract date column from test set
   train=train[ , !names(train) %in% c('date')] # drop date column from train set
   test=test[ , !names(test) %in% c('date')] # drop date column from test set
-  test_pred_hw=arima_h(train,test,batch=4,freq=4) # horizontal predictions for this day
+  test_pred_hw=arima_h(train,test,batch=4,freq=24) # horizontal predictions for this day
   rownames(test_pred_hw)=date_test # set "index"
   write.csv(test_pred_hw,file=paste(dir,'arima_rh_',i,'.csv',sep='')) # write results
 }
 
+# vertical predictions for each day separately
 for (i in 0:6){ # for each day
   train=read.csv(paste(dir,'train_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load train set
   test=read.csv(paste(dir,'test_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load test set
@@ -81,37 +85,3 @@ for (i in 0:6){ # for each day
 
 
 
-
-train_ts=ts(train[[2]],frequency=findfrequency(train[[2]]))
-test_ts=ts(test[[2]],frequency=findfrequency(test[[2]]))
-fit_train_ts=ets(train_ts)
-fit_test_ts=ets(test_ts,model=fit_train_ts)
-train_ts_pred=fitted(fit_train_ts)
-test_ts_pred=fitted(fit_test_ts)
-ts.plot(train_ts,train_ts_pred,col=c('black','red'),lty=c(5,1))
-ts.plot(test_ts,test_ts_pred,col=c('black','red'),lty=c(5,1))
-
-
-train_xts=xts(train[[10]],as.POSIXct(train[["date"]]))
-test_xts=xts(test[[10]],order.by=as.POSIXct(test$date))
-fit_train_xts=ets(train_xts)
-fit_test_xts=ets(test_xts,model=fit_train_xts)
-train_xts_pred=fitted(fit_train_xts)
-test_xts_pred=fitted(fit_test_xts)
-ts.plot(train_xts,train_xts_pred,col=c('black','red'),lty=c(5,1))
-ts.plot(test_xts,test_xts_pred,col=c('black','red'),lty=c(5,1))
-
-# Multi-step, re-estimation
-h <- 5
-train <- window(hsales,end=1989.99)
-test <- window(hsales,start=1990)
-n <- length(test) - h + 1
-fit <- auto.arima(train)
-order <- arimaorder(fit)
-fcmat <- matrix(0, nrow=n, ncol=h)
-for(i in 1:n)
-{  
-  x <- window(hsales, end=1989.99 + (i-1)/12)
-  refit <- Arima(x, order=order[1:3], seasonal=order[4:6])
-  fcmat[i,] <- forecast(refit, h=h)$mean
-}
