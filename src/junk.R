@@ -100,3 +100,19 @@ for(i in 1:n)
   refit <- Arima(x, order=order[1:3], seasonal=order[4:6])
   fcmat[i,] <- forecast(refit, h=h)$mean
 }
+
+
+
+
+
+set.seed(1)
+library(lubridate)
+index <- ISOdatetime(2010,1,1,0,0,0)+1:8759*60*60
+month <- month(index)
+hour <- hour(index)
+usage <- 1000+10*rnorm(length(index))-25*(month-6)^2-(hour-12)^2
+usage <- ts(usage,frequency=24)
+
+#Create monthly dummies.  Add other xvars to this matrix
+xreg <- model.matrix(~as.factor(month))[,2:12]
+colnames(xreg) <- c('Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')

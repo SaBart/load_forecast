@@ -20,6 +20,7 @@ def download_weather(dates,directory,name):
 		obs=[o for o in download_day(dates[0])['history']['observations'] if o['metar'].startswith('METAR')] # get all METAR format observations
 		obs[0].pop('utcdate',None) # remove utcdate entry
 		obs[0].pop('date',None) # remove date entry
+		obs[0]['timestamp']='timestamp' # add entry for timestamps
 		writer=csv.DictWriter(csv_file,fieldnames=obs[0].keys()) # set up dictionary writer with proper fields 
 		writer.writeheader() # write header
 		for date in dates: # for each date
@@ -33,7 +34,7 @@ def download_weather(dates,directory,name):
 	return			
 
 # loads & formats raw weather data  
-def load_weather(path='C:/Users/SABA/Google Drive/mtsg/data/weather_2.csv',index='timestamp',cols=['tempm','hum','pressurem','wspdm']):
+def load_weather(path='C:/Users/SABA/Google Drive/mtsg/data/weather_3.csv',index='timestamp',cols=['tempm','hum','pressurem','wspdm']):
 	data=pd.read_csv(path,header=0,sep=",",usecols=[index]+cols, parse_dates=[index],index_col=index) # read csv
 	data=data.resample('H').mean() # average values across hours
 	data['date']=pd.DatetimeIndex(data.index).normalize() # new column for dates
@@ -63,7 +64,7 @@ download_weather(dates, data_dir, 'weather_3.csv')
 dates=pd.DatetimeIndex(targets.index).strftime('%Y%m%d')[1200:] # reformat dates
 download_weather(dates, data_dir, 'weather_4.csv')
 
-data=load_weather(data_dir+'weather_2.csv',cols=['tempm','hum','pressurem','wspdm'])
+data=load_weather(data_dir+'weather_3.csv',cols=['tempm','hum','pressurem','wspdm'])
 split_save(data,[data_dir+col+'.csv' for col in data])
 
 date='20061216'
