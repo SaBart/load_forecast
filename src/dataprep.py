@@ -3,7 +3,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import csv
+from json import loads
+from urllib.request import urlopen
 
 # loads data
 def load(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
@@ -17,12 +19,64 @@ def load(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.
 # saves data to csv
 def save(data,path):
 	data.to_csv(path,header=True)
-	
+	return
+
 # splits data according to weekdays and saves them 
-def split_save(data,nsplits,paths):
+def split_rows_save(data,nsplits,paths):
 	for i,chunk in split(data,nsplits=nsplits).items(): # for each day
 		save(chunk,paths[i]) # save under special name
-	
+	return
+
+# downloads one day worth of weather data
+def dl_day(date):
+	request='http://api.wunderground.com/api/8cc2ef7d44313e70/history_'+date+'/q/ORY.json' # construct request
+	stream=urlopen(request) # open stream
+	data=stream.read().decode('utf-8') # read data from stream
+	stream.close() # close stream
+	return loads(data) # parse json data
+
+# download & save raw weather data for specified dates
+def dl_save_w(dates,path):
+	with open(path, 'w', newline='') as csv_file: # open stream
+		obs=[o for o in dl_day(dates[0])['history']['observations'] if o['metar'].startswith('METAR')] # get all METAR format observations
+		obs[0].pop('utcdate',None) # remove utcdate entry
+		obs[0].pop('date',None) # remove date entry
+		obs[0]['timestamp']='timestamp' # add entry for timestamps
+		writer=csv.DictWriter(csv_file,fieldnames=obs[0].keys()) # set up dictionary writer with proper fields 
+		writer.writeheader() # write header
+		for date in dates: # for each date
+			obs=[o for o in dl_day(date)['history']['observations'] if o['metar'].startswith('METAR')] # get all METAR format observations
+			for o in obs: # for each observation
+				o.pop('utcdate',None) # remove utcdate entry
+				date=o.pop('date',None) # get date entry (it is a dictionary, extracting values will follow)
+				if not date is None:
+					o['timestamp']='{}-{}-{} {}:{}'.format(date['year'],date['mon'],date['mday'],date['hour'],date['min'])
+				writer.writerow(o)
+	return			
+
+# loads & formats raw weather data  
+def load_w(path='C:/Users/SABA/Google Drive/mtsg/data/weather_3.csv',index='timestamp',cols=['tempm','hum','pressurem','wspdm']):
+	data=pd.read_csv(path,header=0,sep=",",usecols=[index]+cols, parse_dates=[index],index_col=index) # read csv
+	data=data.resample('H').mean() # average values across hours
+	data['date']=pd.DatetimeIndex(data.index).normalize() # new column for dates
+	data['hour']=pd.DatetimeIndex(data.index).hour # new column for hours
+	data=pd.pivot_table(data,index=['date','hour']) # pivot so that minutes are columns, date & hour multi-index and load is value
+	return data
+
+# splits weather data by columns & formats each part and outputs a dictionary with {keys}=={column names} 
+def split_cols(data):
+	return {col:data[col].unstack() for col in data.columns} # return a dictionary of dataframes each with values from only one column of original dataframe and key equal to column name	 
+
+def split_cols_save(data,paths):
+	for (col,path) in zip(data.columns,paths): # for each pair of a column and a path 
+		save(data[col].unstack(),path) # save formatted column under the path
+	return
+
+# loads and concats multiple weather files into one dataframe
+def load_concat_w(paths,index='timestamp',cols=['tempm','hum','pressurem','wspdm']):
+	data=pd.concat([load_w(path,index,cols) for path in paths])
+	return data
+
 # combines minute time intervals into hours
 def m2h(data,nan='keep'):
 	if nan=='keep': # if we want to keep Nans

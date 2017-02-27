@@ -25,32 +25,44 @@ f_ords<-function(train,freq=24,freqs,max_order){
   return(param_best)
 }
 
-
-arima<-function(train,test,hor=1,batch=7,freq=24,NULL,fourier=NULL,xreg_train=NULL,xreg_test=NULL){
+arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg_test=NULL){
   pb<-txtProgressBar(min = 0, max = nrow(test), style = 3) # initialize progress bar
-  if (is.null(fourier)){ # not considering multiple seasonalities
-    xreg_train<-NULL
+  if (is.null(f_K)){ # not considering multiple seasonalities
+    fxreg_train<-NULL
+    fxreg_test<-NULL
   }
   else { # considering multiple seasonalities
-    xreg_train<-fourier(msts(train,seasonal.periods=freqs),K=fourier)
+    fxreg_train<-fourier(msts(train,seasonal.periods=freqs),K=f_K)
+    fxreg_test<-fourier(msts(test,seasonal.periods=freqs),K=f_K)
   }
+  if (is.null(wxreg_train)|is.null(wxreg_test)) # not considering weather regressors
+  {
+    wxreg_train<-NULL
+    wxreg_test<-NULL
+  }
+  else{ # considering weather regressors
+    wxreg_train<-cbind(lapply(wxreg_train,function(x) c(t(x)))) # format and combine weather regressors for train set
+    wxreg_test<-cbind(lapply(wxreg_test,function(x) c(t(x)))) # format and combine weather regressors for test set
+  }
+  xreg_train<-cbind(fxreg_train,wxreg_train) # combine fourier & weather into one matrix for train set
+  xreg_test<-cbind(fxreg_test,wxreg_test) # combine fourier & weather into one matrix for test set
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test)))) # initialize matrix for predictions
- 
-  for (i in 0:nrow(test)){ # for each sample in test set
-    test_ts<-ts(c(t(rbind(train,head(test,i)))),frequency=freq) # add a new day from test set to the current train set
-    if (is.null(xreg)){ # not considering external regressors
-      xreg_ts<-xreg # preserve NULL
+  for (i in 0:nrow(test)-1){ # for each sample in test set
+    train_ts<-ts(c(t(rbind(train,head(test,i)))),frequency=freq) # add a new day from test set to the current train set
+    if (is.null(xreg_train)|is.null(xreg_test)){ # not considering external regressors
+      xreg_train<-NULL # preserve NULL
+      xreg_test<-NULL # preserve NULL
     }
     else{ # considering external regressors
-      xreg_ts<-ts.union(lapply(xreg,function(x,freq) ts(c(t(x)),frequency=freq),freq=freq)) # format and combine external regressors
+      xreg_train<-rbind(xreg_train,xreg_test[,])
     }
-    if (i%%batch==0){ # # if its time to retrain
-      model<-auto.arima(test_ts,xreg=xreg_test) # find best model on the current train set
+    if (i%%batch==0){ # if its time to retrain
+      model<-auto.arima(train_ts,xreg=cbind(fxreg_train,wxreg_train)) # find best model on the current train set
     }
     else{ # it is not the time to retrain
-      model<-Arima(test_ts,model=model,xreg=xreg_test) # do not train, use current model with new observations
+      model<-Arima(train_ts,model=model,xreg=cbind(fxreg_train,wxreg_train)) # do not train, use current model with new observations
     }
-    test_pred[i+1,]<-forecast(model,h=hor)$mean # predict new values
+    test_pred[i+1,]<-forecast(model,h=hor,xreg=)$mean # predict new values
     setTxtProgressBar(pb, i) # update progress
   }
   close(pb) # close progress bar
@@ -110,12 +122,28 @@ test<-read.csv(paste(dir,'test.csv', sep=''),header=TRUE,row.names='date',sep=',
 
 # horizontal predictions
 K<-f_ords(train,freq=24,freqs=c(24*7,365.25*7),max_order=10) # find best fourier coefficients
+# K=c(10,6)
 test_pred_h<-arima_h(train,test,batch=28,freq=24,freqs=c(24*7,365.25*7),fourier=K) # horizontal prediction
 rownames(test_pred_h)<-date_test # set "index"
 write.csv(test_pred_h,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_rh.csv',quote = FALSE) # write predictions
 
 
 # WEATHER EXTERNAL REGRESSORS
+
+# horizontal predictions
+train<-read.csv(paste(dir,'train.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load train set
+test<-read.csv(paste(dir,'test.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load test set
+temp_train<-read.csv(paste(dir,'train_tempm.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load temperatures for train set
+temp_test<-read.csv(paste(dir,'test_tempm.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load temperatures for test set
+hum_train<-read.csv(paste(dir,'train_hum.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load humidities for train set
+hum_test<-read.csv(paste(dir,'test_hum.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load humidities for test set
+wspd_train<-read.csv(paste(dir,'train_wspdm.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load wind speeds for train set
+wspd_test<-read.csv(paste(dir,'test_wspdm.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load wind speeds for test set
+prsr_train<-read.csv(paste(dir,'train_pressurem.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load pressures for train set
+prsr_test<-read.csv(paste(dir,'test_pressurem.csv', sep=''),header=TRUE,row.names='date',sep=',',dec='.') # load pressures for test set
+
+
+xregs=list(temp_train,hum_train,wspd_train,prsr_train)
 
 
 # FOURIER & WEATHER EXTERNAL REGRESSORS
