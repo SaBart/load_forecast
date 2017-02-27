@@ -41,26 +41,25 @@ arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg
     wxreg_test<-NULL
   }
   else{ # considering weather regressors
-    wxreg_train<-cbind(lapply(wxreg_train,function(x) c(t(x)))) # format and combine weather regressors for train set
-    wxreg_test<-cbind(lapply(wxreg_test,function(x) c(t(x)))) # format and combine weather regressors for test set
+    wxreg_train<-do.call(cbind,lapply(wxreg_train,function(x) c(t(x)))) # format and combine weather regressors for train set
+    wxreg_test<-do.call(cbind,lapply(wxreg_test,function(x) c(t(x)))) # format and combine weather regressors for test set
   }
   xreg_train<-cbind(fxreg_train,wxreg_train) # combine fourier & weather into one matrix for train set
   xreg_test<-cbind(fxreg_test,wxreg_test) # combine fourier & weather into one matrix for test set
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test)))) # initialize matrix for predictions
   for (i in 0:nrow(test)-1){ # for each sample in test set
     train_ts<-ts(c(t(rbind(train,head(test,i)))),frequency=freq) # add a new day from test set to the current train set
-    if (is.null(xreg_train)|is.null(xreg_test)){ # not considering external regressors
-      xreg_train<-NULL # preserve NULL
-      xreg_test<-NULL # preserve NULL
+    if (!is.null(xreg_train)&!is.null(xreg_test)){ # if considering external regressors
+      xreg_train<-rbind(xreg_train,head(xreg_test,i)) # add 
+      xreg_next<-xreg_test[i+1:i+h,]
     }
-    else{ # considering external regressors
-      xreg_train<-rbind(xreg_train,xreg_test[,])
-    }
+
+    
     if (i%%batch==0){ # if its time to retrain
-      model<-auto.arima(train_ts,xreg=cbind(fxreg_train,wxreg_train)) # find best model on the current train set
+      model<-auto.arima(train_ts,xreg=xreg_train) # find best model on the current train set
     }
     else{ # it is not the time to retrain
-      model<-Arima(train_ts,model=model,xreg=cbind(fxreg_train,wxreg_train)) # do not train, use current model with new observations
+      model<-Arima(train_ts,model=model,xreg=xreg_train) # do not train, use current model with new observations
     }
     test_pred[i+1,]<-forecast(model,h=hor,xreg=)$mean # predict new values
     setTxtProgressBar(pb, i) # update progress
