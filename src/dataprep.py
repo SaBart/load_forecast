@@ -21,10 +21,10 @@ def save(data,path):
 	data.to_csv(path,header=True)
 	return
 
-# splits data according to weekdays and saves them 
-def split_rows_save(data,nsplits,paths):
-	for i,chunk in split(data,nsplits=nsplits).items(): # for each day
-		save(chunk,paths[i]) # save under special name
+# saves dictionary containing {key:dataframe}
+def save_dict(dic,path):
+	for key,value in dic.items():
+		save(data=value,path=path+str(key)+'.csv') # save data
 	return
 
 # downloads one day worth of weather data
@@ -129,6 +129,11 @@ def split_train_test(data, base=7,test_size=0.25): # in time series analysis ord
 # split data into n datasets (according to weekdays)
 def split(data,nsplits=7): 
 	return {i:data.iloc[i::nsplits] for i in range(nsplits)} # return as a dictionary {offset:data}
+	
+def merge(paths):
+		for path in paths:
+			data=pd.read_csv(path,header=0,sep=",", parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
+		return data	
 	
 # rounds down to the nearest multiple of base
 def flr(x,base=7):

@@ -1,10 +1,6 @@
 library(forecast)
 library(lubridate)
-
-load<-function(path){
-  data<-read.csv(path,header=TRUE,row.names='date',sep=',',dec='.') # load data
-  return(data)
-}
+source('dataprep.R')
 
 pop_col=function(data,col){ # removes and returns column from dataframe
   poped_col<-data$col # extract column from dataframe
@@ -68,7 +64,7 @@ arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg
     else{ # it is not the time to retrain
       model<-Arima(train_ts,model=model,xreg=xreg) # do not train, use current model with new observations
     }
-    test_pred[i+1,]<-forecast(model,h=hor,xreg=xreg_pred)$mean # predict new values
+    test_pred[(i%/%hor)+1,]<-forecast(model,h=hor,xreg=xreg_pred)$mean # predict new values
     setTxtProgressBar(pb, i) # update progress
   }
   close(pb) # close progress bar
@@ -94,115 +90,113 @@ arima_v<-function(train,test,batch=7,freq=7,f_K=NULL,wxreg_train=NULL,wxreg_test
 }
 
 
-dir<-'C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data
+wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # directory containing data
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory for the results of experiments
 
 # NO EXTERNAL REGRESSORS
 
-train<-load(paste(dir,'train.csv', sep='')) # load train set
-test<-load(paste(dir,'test.csv', sep='')) # load test set
+train<-load(paste(wip_dir,'train.csv', sep='')) # load train set
+test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 
 # horizontal predictions
-test_pred_h<-arima_h(train,test,batch=28,freq=24) # horizontal prediction
-write.csv(test_pred_h,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_h.csv',quote = FALSE) # write predictions
+test_pred_h<-arima_h(train,test,batch=28,freq=24) # predict values
+write.csv(test_pred_h,file=paste(exp_dir,'arima_h','.csv',sep=''),quote = FALSE) # write predictions
 
 # vertical predictions
-test_pred_v<-arima_v(train,test,batch=28,freq=7) # vertical predictions
-write.csv(test_pred_v,file='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_v.csv') # write results
+test_pred_v<-arima_v(train,test,batch=28,freq=7) # predict values
+write.csv(test_pred_v,file=paste(exp_dir,'arima_v','.csv',sep=''),quote = FALSE) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
-  train<-load(paste(dir,'train_',i,'.csv', sep='')) # load train set
-  test<-load(paste(dir,'test_',i,'.csv', sep='')) # load test set
+  train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
+  test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_hw<-arima_h(train,test,batch=4,freq=24) # horizontal predictions for this day
-  write.csv(test_pred_hw,file=paste(dir,'arima_h_',i,'.csv',sep='')) # write results
+  write.csv(test_pred_hw,file=paste(exp_dir,'arima_h_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
 # vertical predictions for each day separately
 for (i in 0:6){ # for each day
-  train<-load(paste(dir,'train_',i,'.csv', sep='')) # load train set
-  test<-load(paste(dir,'test_',i,'.csv', sep='')) # load test set
-  test_pred_vw<-arima_v(train,test,batch=4,freq=4) # horizontal predictions for this day
-  write.csv(test_pred_vw,file=paste(dir,'arima_v_',i,'.csv',sep='')) # write results
+  train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
+  test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
+  test_pred_vw<-arima_v(train,test,batch=4,freq=4) # vertical predictions for this day
+  write.csv(test_pred_vw,file=paste(exp_dir,'arima_v_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
 # FOURIER EXTERNAL REGRESSORS
 
-train<-load(paste(dir,'train.csv', sep='')) # load train set
-test<-load(paste(dir,'test.csv', sep='')) # load test set
+train<-load(paste(wip_dir,'train.csv', sep='')) # load train set
+test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 
 # horizontal predictions
-K<-f_ords(train,freq=24,freqs=c(24*7,365.25*7),max_order=10) # find best fourier coefficients
+K<-f_ords(train,freq=365.25*24,freqs=c(24,7*24),max_order=12) # find best fourier coefficients
 # K=c(10,6)
 test_pred_hf<-arima_h(train,test,batch=28,freq=24,f_K=K) # horizontal prediction
-write.csv(test_pred_h,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_hf.csv',quote = FALSE) # write predictions
+write.csv(test_pred_hf,file=paste(exp_dir,'arima_hf','.csv',sep=''),quote = FALSE) # write predictions
 
 # vertical predictions
-K<-f_ords(train,freq=7,freqs=c(365.25),max_order=20) # find best fourier coefficients
-# K=c(10)
+K<-f_ords(train,freq=365.25,freqs=c(7),max_order=3) # find best fourier coefficients
+# K=c(2)
 test_pred_vf<-arima_v(train,test,batch=28,freq=7,f_K=K) # horizontal prediction
-write.csv(test_pred_h,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_vf.csv',quote = FALSE) # write predictions
+write.csv(test_pred_vf,file=paste(exp_dir,'arima_vf','.csv',sep=''),quote = FALSE) # write predictions
 
 
 # WEATHER EXTERNAL REGRESSORS
 
-# horizontal predictions
-
 train<-load(paste(dir,'train.csv', sep='')) # load train set
 test<-load(paste(dir,'test.csv', sep='')) # load test set
-wxregs_train<-lapply(list('train_tempm.csv','train_hum.csv','train_wspdm.csv','train_pressurem.csv'),function(x) load(paste(dir,x,sep=''))) # load weather covariates for train set
-wxregs_test<-lapply(list('test_tempm.csv','test_hum.csv','test_wspdm.csv','test_pressurem.csv'),function(x) load(paste(dir,x,sep=''))) # load weather covariates for test set
+wxregs_train<-lapply(list('train_tempm.csv','train_hum.csv','train_wspdm.csv','train_pressurem.csv'),function(x) load(paste(wip_dir,x,sep=''))) # load weather covariates for train set
+wxregs_test<-lapply(list('test_tempm.csv','test_hum.csv','test_wspdm.csv','test_pressurem.csv'),function(x) load(paste(wip_dir,x,sep=''))) # load weather covariates for test set
 
 # horizontal predictions
-# K<-f_ords(train,freq=24,freqs=c(24*7,365.25*7),max_order=10) # find best fourier coefficients
-K=c(10,6)
 test_pred_hw<-arima_h(train,test,batch=28,freq=24,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal prediction
-write.csv(test_pred_hfw,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_hw.csv',quote = FALSE) # write predictions
+write.csv(test_pred_hw,file=paste(exp_dir,'arima_hw','.csv',sep=''),quote = FALSE) # write predictions
 
 # vertical predictions
-# K<-f_ords(train,freq=7,freqs=c(365.25),max_order=20) # find best fourier coefficients
-K=c(10)
 test_pred_vw<-arima_h(train,test,batch=28,freq=7,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # vertical prediction
-write.csv(test_pred_vfw,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_vw.csv',quote = FALSE) # write predictions
+write.csv(test_pred_vw,file=paste(exp_dir,'arima_vw','.csv',sep=''),quote = FALSE) # write predictions
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
-  train<-load(paste(dir,'train_',i,'.csv', sep='')) # load train set
-  test<-load(paste(dir,'test_',i,'.csv', sep='')) # load test set
-  wxregs_train<-lapply(list('train_tempm_','train_hum_','train_wspdm_','train_pressurem_'),function(x) load(paste(dir,x,i,'.csv',sep=''))) # load weather covariates for train set
-  wxregs_test<-lapply(list('test_tempm_','test_hum_','test_wspdm_','test_pressurem_'),function(x) load(paste(dir,x,i,'.csv',sep=''))) # load weather covariates for test set
+  train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
+  test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
+  wxregs_train<-lapply(list('train_tempm_','train_hum_','train_wspdm_','train_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for train set
+  wxregs_test<-lapply(list('test_tempm_','test_hum_','test_wspdm_','test_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for test set
   test_pred_hw<-arima_h(train,test,batch=4,freq=24,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal predictions for this day
-  write.csv(test_pred_hw,file=paste(dir,'arima_hw_',i,'.csv',sep='')) # write results
+  write.csv(test_pred_hw,file=paste(exp_dir,'arima_hw_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
 # vertical predictions for each day separately
 for (i in 0:6){ # for each day
-  train<-load(paste(dir,'train_',i,'.csv', sep='')) # load train set
-  test<-load(paste(dir,'test_',i,'.csv', sep='')) # load test set
-  wxregs_train<-lapply(list('train_tempm_','train_hum_','train_wspdm_','train_pressurem_'),function(x) load(paste(dir,x,i,'.csv',sep=''))) # load weather covariates for train set
-  wxregs_test<-lapply(list('test_tempm_','test_hum_','test_wspdm_','test_pressurem_'),function(x) load(paste(dir,x,i,'.csv',sep=''))) # load weather covariates for test set
+  train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
+  test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
+  wxregs_train<-lapply(list('train_tempm_','train_hum_','train_wspdm_','train_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for train set
+  wxregs_test<-lapply(list('test_tempm_','test_hum_','test_wspdm_','test_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for test set
   test_pred_vw<-arima_v(train,test,batch=4,freq=4,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal predictions for this day
-  write.csv(test_pred_vw,file=paste(dir,'arima_vw_',i,'.csv',sep='')) # write results
+  write.csv(test_pred_vw,file=paste(exp_dir,'arima_vw_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
 
 # FOURIER & WEATHER EXTERNAL REGRESSORS
 
-train<-load(paste(dir,'train.csv', sep='')) # load train set
-test<-load(paste(dir,'test.csv', sep='')) # load test set
-wxregs_train<-lapply(list('train_tempm.csv','train_hum.csv','train_wspdm.csv','train_pressurem.csv'),function(x) load(paste(dir,x,sep=''))) # load weather covariates for train set
-wxregs_test<-lapply(list('test_tempm.csv','test_hum.csv','test_wspdm.csv','test_pressurem.csv'),function(x) load(paste(dir,x,sep=''))) # load weather covariates for test set
+train<-load(paste(wip_dir,'train.csv', sep='')) # load train set
+test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
+wxregs_train<-lapply(list('train_tempm.csv','train_hum.csv','train_wspdm.csv','train_pressurem.csv'),function(x) load(paste(wip_dir,x,sep=''))) # load weather covariates for train set
+wxregs_test<-lapply(list('test_tempm.csv','test_hum.csv','test_wspdm.csv','test_pressurem.csv'),function(x) load(paste(wip_dir,x,sep=''))) # load weather covariates for test set
 
 # horizontal predictions
-# K<-f_ords(train,freq=24,freqs=c(24*7,365.25*7),max_order=10) # find best fourier coefficients
+# K<-f_ords(train,freq=365.25*24,freqs=c(24,7*24),max_order=10) # find best fourier coefficients
 K=c(10,6)
 test_pred_hfw<-arima_h(train,test,batch=28,freq=24,f_K=K,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal prediction
-write.csv(test_pred_hfw,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_hfw.csv',quote = FALSE) # write predictions
+write.csv(test_pred_hfw,file=paste(exp_dir,'arima_hfw','.csv',sep=''),quote = FALSE) # write predictions
 
 # vertical predictions
-# K<-f_ords(train,freq=7,freqs=c(365.25),max_order=20) # find best fourier coefficients
+K<-f_ords(train,freq=365.25,freqs=c(7),max_order=3) # find best fourier coefficients
 K=c(10)
 test_pred_vfw<-arima_h(train,test,batch=28,freq=7,f_K=K,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # vertical prediction
-write.csv(test_pred_vfw,file<-'C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_vfw.csv',quote = FALSE) # write predictions
+write.csv(test_pred_vfw,file=paste(exp_dir,'arima_vfw','.csv',sep=''),quote = FALSE) # write predictions
+
+
+
 
 
 

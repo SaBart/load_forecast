@@ -1,18 +1,20 @@
 library(forecast)
-
+source('dataprep.R')
 
 ets_w=function(train,test,hor=1,batch=7,freq=7){
-  test_pred=matrix(data=NA,nrow=nrow(test),ncol=ncol(test)) # initialize matrix for predictions
   pb=txtProgressBar(min = 0, max = nrow(test), style = 3) # initialize progress bar
-  for (i in 0:nrow(test)){ # for each sample in test set
-    test_ts=ts(c(t(rbind(train,head(test,i)))),frequency=freq) # add a new day from test set to the current train set
+  test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test)))) # initialize matrix for predictions
+  train<-c(t(train)) # flatten train set
+  test<-c(t(test)) # flatten test set
+  for (i in seq(0,length(test)-hor,hor)){ # for each sample in test set
+    train_ts<-ts(c(train,test[seq_len(i)]),frequency=freq) # add new observations from test set to the current train set
     if (i%%batch==0){ # # if its time to retrain
       model=ets(test_ts) # find best model on the current train set
     }
     else{ # it is not the time to retrain
       model=ets(test_ts,model=model) # do not train, use current model with new observations
     }
-    test_pred[i,]=forecast(model,h=hor)$mean # predict new values
+    test_pred[(i%/%hor)+1,]=forecast(model,h=hor)$mean # predict new values
     setTxtProgressBar(pb, i) # update progress
   }
   close(pb) # close progress bar
@@ -35,45 +37,34 @@ ets_v=function(train,test,batch=7,freq=7){
   return(test_pred)
 }
 
-dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data
+wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # directory containing data
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory for the results of experiments
 
-train=read.csv(paste(dir,'train.csv', sep=''),header=TRUE,sep=',',dec='.') # load train set
-test=read.csv(paste(dir,'test.csv', sep=''),header=TRUE,sep=',',dec='.') # load test set
-date_train=train$date # extract date column from train set
-date_test=test$date # extract date column from test set
-train=train[ , !names(train) %in% c('date')] # drop date column from train set
-test=test[ , !names(test) %in% c('date')] # drop date column from test set
+train<-load(paste(wip_dir,'train.csv', sep='')) # load train set
+test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 
-test_pred_h=ets_h(train,test,batch=28,freq=24) # horizontal prediction
-rownames(test_pred_h)=date_test # set "index"
-write.csv(test_pred_h,file='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_rh.csv',quote = FALSE) # write predictions
+# horizontal prediction
+test_pred_h=ets_h(train,test,batch=28,freq=24) # predict values
+write.csv(test_pred_h,file=paste(exp_dir,'ets_h.csv'),quote = FALSE) # write predictions
 
-test_pred_v=ets_v(train,test,batch=28,freq=7) # vertical predictions
-rownames(test_pred_v)=date_test # set "index"
-write.csv(test_pred_v,file='C:/Users/SABA/Google Drive/mtsg/code/load_forecast/data/arima_rv.csv') # write results
+# vertical predictions
+test_pred_v=ets_v(train,test,batch=28,freq=7) # predict values
+write.csv(test_pred_v,file=paste(exp_dir,'ets_v.csv'),quote = FALSE) # write results
 
+# horizontal predictions for each day separately
 for (i in 0:6){ # for each day
-  train=read.csv(paste(dir,'train_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load train set
-  test=read.csv(paste(dir,'test_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load test set
-  date_train=train$date # extract date column from train set
-  date_test=test$date # extract date column from test set
-  train=train[ , !names(train) %in% c('date')] # drop date column from train set
-  test=test[ , !names(test) %in% c('date')] # drop date column from test set
+  train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
+  test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_hw=ets_h(train,test,batch=4,freq=4) # horizontal predictions for this day
-  rownames(test_pred_hw)=date_test # set "index"
-  write.csv(test_pred_hw,file=paste(dir,'arima_rh_',i,'.csv',sep='')) # write results
+  write.csv(test_pred_hw,file=paste(exp_dir,'ets_h_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
+# vertical predictions for each day separately
 for (i in 0:6){ # for each day
-  train=read.csv(paste(dir,'train_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load train set
-  test=read.csv(paste(dir,'test_',i,'.csv', sep=''),header=TRUE,sep=',',dec='.') # load test set
-  date_train=train$date # extract date column from train set
-  date_test=test$date # extract date column from test set
-  train=train[ , !names(train) %in% c('date')] # drop date column from train set
-  test=test[ , !names(test) %in% c('date')] # drop date column from test set
+  train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
+  test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_vw=ets_v(train,test,batch=4,freq=4) # horizontal predictions for this day
-  rownames(test_pred_vw)=date_test # set "index"
-  write.csv(test_pred_vw,file=paste(dir,'arima_rv_',i,'.csv',sep='')) # write results
+  write.csv(test_pred_vw,file=paste(exp_dir,'ets_v_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
 
