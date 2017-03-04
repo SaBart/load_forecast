@@ -45,18 +45,18 @@ test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 
 # horizontal prediction
 test_pred_h=ets_h(train,test,batch=28,freq=24) # predict values
-write.csv(test_pred_h,file=paste(exp_dir,'ets_h.csv'),quote = FALSE) # write predictions
+write.csv(data.frame('date'=rownames(test_pred_h),test_pred_h),file=paste(exp_dir,'ets_h.csv'),quote = FALSE) # write predictions
 
 # vertical predictions
 test_pred_v=ets_v(train,test,batch=28,freq=7) # predict values
-write.csv(test_pred_v,file=paste(exp_dir,'ets_v.csv'),quote = FALSE) # write results
+write.csv(data.frame('date'=rownames(test_pred_v),test_pred_v),file=paste(exp_dir,'ets_v.csv'),quote = FALSE) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
   train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_hw=ets_h(train,test,batch=4,freq=4) # horizontal predictions for this day
-  write.csv(test_pred_hw,file=paste(exp_dir,'ets_h_',i,'.csv',sep=''),quote = FALSE) # write results
+  write.csv(data.frame('date'=rownames(test_pred_hw),test_pred_hw),file=paste(exp_dir,'ets_h_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
 # vertical predictions for each day separately
@@ -64,7 +64,7 @@ for (i in 0:6){ # for each day
   train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_vw=ets_v(train,test,batch=4,freq=4) # horizontal predictions for this day
-  write.csv(test_pred_vw,file=paste(exp_dir,'ets_v_',i,'.csv',sep=''),quote = FALSE) # write results
+  write.csv(data.frame('date'=rownames(test_pred_vw),test_pred_vw),file=paste(exp_dir,'ets_v_',i,'.csv',sep=''),quote = FALSE) # write results
 }
 
 

@@ -45,11 +45,11 @@ test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 
 # horizontal prediction
 test_pred_h=bats_h(train,test,batch=28,freqs=c(24,7*24,365.25*24)) # predict values
-write.csv(test_pred_h,file=paste(exp_dir,'bats_h','.csv',sep=''),quote = FALSE) # write predictions
+write.csv(data.frame('date'=rownames(test_pred_h),test_pred_h),file=paste(exp_dir,'bats_h','.csv',sep=''),quote = FALSE) # write predictions
 
 # vertical predictions
 test_pred_v=bats_v(train,test,batch=28,freqs=c(7*24,365.25*24)) # predict values
-write.csv(test_pred_v,file=paste(exp_dir,'bats_v','.csv',sep=''),quote = FALSE) # write results
+write.csv(data.frame('date'=rownames(test_pred_v),test_pred_v),file=paste(exp_dir,'bats_v','.csv',sep=''),quote = FALSE) # write results
 
 
 
