@@ -116,3 +116,6 @@ usage <- ts(usage,frequency=24)
 #Create monthly dummies.  Add other xvars to this matrix
 xreg <- model.matrix(~as.factor(month))[,2:12]
 colnames(xreg) <- c('Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')
+
+
+

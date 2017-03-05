@@ -28,7 +28,8 @@ f_ords<-function(train,freq=24,freqs,max_order){
 }
 
 arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg_test=NULL){
-  pb<-txtProgressBar(min = 0, max = nrow(test), style = 3) # initialize progress bar
+  total=nrow(test) # number of days to predict
+  pb <- tkProgressBar(title = "ETS", min = 0, max = total, width = 500) # initialize progress bar
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test)))) # initialize matrix for predictions
   train<-c(t(train)) # flatten train set
   test<-c(t(test)) # flatten test set
@@ -51,7 +52,8 @@ arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg
   }
   xreg_train<-cbind(fxreg_train,wxreg_train) # combine fourier & weather into one matrix for train set
   xreg_test<-cbind(fxreg_test,wxreg_test) # combine fourier & weather into one matrix for test set
-  xreg=NULL # default covariances
+  xreg=NULL # default covariates
+  xreg_pred=NULL # default covariates for predictions
   for (i in seq(0,length(test)-hor,hor)){ # for each window of observations in test set
     train_ts<-ts(c(train,test[seq_len(i)]),frequency=freq) # add new observations from test set to the current train set
     if (!is.null(xreg_train)&!is.null(xreg_test)){ # if considering external regressors
@@ -60,15 +62,16 @@ arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg
     }
     if (i%%batch==0){ # if its time to retrain
       model<-auto.arima(train_ts,xreg=xreg,seasonal=FALSE,parallel = TRUE,stepwise=FALSE) # find best model on the current train set
+      print(arimaorder(model)) # print the type of model
     }
     else{ # it is not the time to retrain
       model<-Arima(train_ts,model=model,xreg=xreg) # do not train, use current model with new observations
     }
     test_pred[(i%/%hor)+1,]<-forecast(model,h=hor,xreg=xreg_pred)$mean # predict new values
-    setTxtProgressBar(pb, i) # update progress
+      setTkProgressBar(pb, i,label=paste( (i%/%hor)+1,'/',total)) # update progress
   }
   close(pb) # close progress bar
-  return(data.frame(test_pred))
+  return(test_pred)
 }
 
 arima_h<-function(train,test,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg_test=NULL){

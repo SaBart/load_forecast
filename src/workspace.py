@@ -54,8 +54,7 @@ for name,data in weather_split.items():
 	dp.save_dict(dic=dp.split(train_w,nsplits=7), path=wip_dir+'train_'+name+'_') # split train set according to weekdays and save each into a separate file
 	dp.save_dict(dic=dp.split(test_w,nsplits=7), path=wip_dir+'test_'+name+'_') # split test set according to weekdays and save each into a separate file
 
+
 paths=[wip_dir + path for path in ['test_0.csv','test_1.csv','test_2.csv','test_3.csv','test_4.csv','test_5.csv','test_6.csv']]
-
 data=dp.load_merge(paths,index='date')
-
 test=dp.load(wip_dir+'test.csv',index='date')

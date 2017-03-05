@@ -2,7 +2,8 @@ library(forecast)
 source('dataprep.R')
 
 bats_w=function(train,test,hor=1,batch=7,freqs=c(24,7*24,365.25*24)){
-  pb=txtProgressBar(min = 0, max = nrow(test), style = 3) # initialize progress bar
+  total=nrow(test) # number of days to predict
+  ppb <- tkProgressBar(title = "ETS", min = 0, max = total, width = 500) # initialize progress bar
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test)))) # initialize matrix for predictions
   train<-c(t(train)) # flatten train set
   test<-c(t(test)) # flatten test set
@@ -15,14 +16,14 @@ bats_w=function(train,test,hor=1,batch=7,freqs=c(24,7*24,365.25*24)){
       model=bats(test_ts,model=model) # do not train, use current model with new observations
     }
     test_pred[(i%/%hor)+1,]=forecast(model,h=hor)$mean # predict new values
-    setTxtProgressBar(pb, i) # update progress
+    setTkProgressBar(pb, i,label=paste( (i%/%hor)+1,'/',total)) # update progress
   }
   close(pb) # close progress bar
-  return(data.frame(test_pred))
+  return(test_pred)
 }
 
 bats_h=function(train,test,batch=7,freqs=c(24,7*24,365.25*24)){
-  return(bats_w(train,test,hor=24,batch=batch,freq=freq))
+  return(bats_w(train,test,hor=24,batch=batch,freqs=freqs))
 }
 
 bats_v=function(train,test,batch=7,freqs=c(7*24,365.25*24)){
@@ -32,7 +33,7 @@ bats_v=function(train,test,batch=7,freqs=c(7*24,365.25*24)){
     test_day=as.data.frame(test[[col]]) # convert dataframe column to dataframe
     colnames(train_day)=c(col) # set column name to match
     colnames(test_day)=c(col) # set column name to match
-    test_pred[[col]]=bats_w(train_day,test_day,hor=1,batch=batch,freq=freq) # predictions
+    test_pred[[col]]=bats_w(train_day,test_day,hor=1,batch=batch,freqs=freqs) # predictions
   }
   return(test_pred)
 }
