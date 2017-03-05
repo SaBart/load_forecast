@@ -7,13 +7,22 @@ import csv
 from json import loads
 from urllib.request import urlopen
 
-# loads data
-def load(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
+# loads & formats data
+def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
 	data=pd.read_csv(path,header=0,sep=";",usecols=[0,1,2], names=['date','time','load'],dtype={'load': np.float64},na_values=['?'], parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
 	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
 	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
 	data=pd.pivot_table(data,index=['date','hour'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
-	data=data.applymap(lambda x:(x*1000)/60) # convert kW to Wh 
+	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
+	data=data.applymap(lambda x:(x*1000)/60) # convert kW to Wh
+	data=cut(data) # remove incomplete first and last days
+	# TODO: HANDLE MISSING VALUES
+	data=data.mean(axis=1,skipna=False).unstack()  # average load across hours, preserving nans
+	return data
+
+# loads file
+def load(path,index='date'):
+	data=pd.read_csv(path,header=0,sep=",", parse_dates=[index],index_col=index)
 	return data
 
 # saves data to csv
@@ -130,10 +139,11 @@ def split_train_test(data, base=7,test_size=0.25): # in time series analysis ord
 def split(data,nsplits=7): 
 	return {i:data.iloc[i::nsplits] for i in range(nsplits)} # return as a dictionary {offset:data}
 	
-def merge(paths):
-		for path in paths:
-			data=pd.read_csv(path,header=0,sep=",", parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
-		return data	
+def load_merge(paths,index='date'):
+	data=pd.concat([pd.read_csv(path,header=0,sep=",", parse_dates=[index],index_col=index) for path in paths], axis=0) # load all dataframes into one
+	if not data.index.is_monotonic_increasing:
+		data.sort_index(inplace=True) # order index
+	return data	
 	
 # rounds down to the nearest multiple of base
 def flr(x,base=7):

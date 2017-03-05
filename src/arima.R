@@ -100,26 +100,26 @@ test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 
 # horizontal predictions
 test_pred_h<-arima_h(train,test,batch=28,freq=24) # predict values
-write.csv(data.frame('date'=rownames(test_pred_h),test_pred_h),file=paste(exp_dir,'arima_h','.csv',sep=''),quote = FALSE) # write predictions
+save(data=test_pred_h,path=paste(exp_dir,'arima_h','.csv',sep='')) # write results
 
 # vertical predictions
 test_pred_v<-arima_v(train,test,batch=28,freq=7) # predict values
-write.csv(data.frame('date'=rownames(test_pred_v),test_pred_v),file=paste(exp_dir,'arima_v','.csv',sep=''),quote = FALSE) # write results
+save(data=test_pred_v,path=paste(exp_dir,'arima_v','.csv',sep='')) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
   train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
-  test_pred_hw<-arima_h(train,test,batch=4,freq=24) # horizontal predictions for this day
-  write.csv(data.frame('date'=rownames(test_pred_hw),test_pred_hw),file=paste(exp_dir,'arima_h_',i,'.csv',sep=''),quote = FALSE) # write results
+  test_pred_hwi<-arima_h(train,test,batch=4,freq=24) # horizontal predictions for this day
+  save(data=test_pred_hwi,path=paste(exp_dir,'arima_h_',i,'.csv',sep='')) # write results
 }
 
 # vertical predictions for each day separately
 for (i in 0:6){ # for each day
   train<-load(paste(wip_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
-  test_pred_vw<-arima_v(train,test,batch=4,freq=4) # vertical predictions for this day
-  write.csv(data.frame('date'=rownames(test_pred_vw),test_pred_vw),file=paste(exp_dir,'arima_v_',i,'.csv',sep=''),quote = FALSE) # write results
+  test_pred_vwi<-arima_v(train,test,batch=4,freq=4) # vertical predictions for this day
+  save(data=test_pred_vwi,path=paste(exp_dir,'arima_v_',i,'.csv',sep='')) # write results
 }
 
 # FOURIER EXTERNAL REGRESSORS
@@ -131,13 +131,13 @@ test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 K<-f_ords(train,freq=365.25*24,freqs=c(24,7*24),max_order=12) # find best fourier coefficients
 # K=c(10,6)
 test_pred_hf<-arima_h(train,test,batch=28,freq=24,f_K=K) # horizontal prediction
-write.csv(data.frame('date'=rownames(test_pred_hf),test_pred_hf),file=paste(exp_dir,'arima_hf','.csv',sep=''),quote = FALSE) # write predictions
+save(data=test_pred_hf,path=paste(exp_dir,'arima_hf.csv',sep='')) # write results
 
 # vertical predictions
 K<-f_ords(train,freq=365.25,freqs=c(7),max_order=3) # find best fourier coefficients
 # K=c(2)
 test_pred_vf<-arima_v(train,test,batch=28,freq=7,f_K=K) # horizontal prediction
-write.csv(data.frame('date'=rownames(test_pred_vf),test_pred_vf),file=paste(exp_dir,'arima_vf','.csv',sep=''),quote = FALSE) # write predictions
+save(data=test_pred_vf,path=paste(exp_dir,'arima_vf.csv',sep='')) # write results
 
 
 # WEATHER EXTERNAL REGRESSORS
@@ -149,11 +149,11 @@ wxregs_test<-lapply(list('test_tempm.csv','test_hum.csv','test_wspdm.csv','test_
 
 # horizontal predictions
 test_pred_hw<-arima_h(train,test,batch=28,freq=24,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal prediction
-write.csv(data.frame('date'=rownames(test_pred_hw),test_pred_hw),file=paste(exp_dir,'arima_hw','.csv',sep=''),quote = FALSE) # write predictions
+save(data=test_pred_hw,path=paste(exp_dir,'arima_hw.csv',sep='')) # write results
 
 # vertical predictions
 test_pred_vw<-arima_h(train,test,batch=28,freq=7,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # vertical prediction
-write.csv(data.frame('date'=rownames(test_pred_vw),test_pred_vw),file=paste(exp_dir,'arima_vw','.csv',sep=''),quote = FALSE) # write predictions
+save(data=test_pred_vw,path=paste(exp_dir,'arima_vw.csv',sep='')) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
@@ -161,8 +161,8 @@ for (i in 0:6){ # for each day
   test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
   wxregs_train<-lapply(list('train_tempm_','train_hum_','train_wspdm_','train_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for train set
   wxregs_test<-lapply(list('test_tempm_','test_hum_','test_wspdm_','test_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for test set
-  test_pred_hw<-arima_h(train,test,batch=4,freq=24,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal predictions for this day
-  write.csv(data.frame('date'=rownames(test_pred_hw),test_pred_hw),file=paste(exp_dir,'arima_hw_',i,'.csv',sep=''),quote = FALSE) # write results
+  test_pred_hwi<-arima_h(train,test,batch=4,freq=24,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal predictions for this day
+  save(data=test_pred_hwi,path=paste(exp_dir,'arima_hw_',i,'.csv',sep='')) # write results
 }
 
 # vertical predictions for each day separately
@@ -171,8 +171,8 @@ for (i in 0:6){ # for each day
   test<-load(paste(wip_dir,'test_',i,'.csv', sep='')) # load test set
   wxregs_train<-lapply(list('train_tempm_','train_hum_','train_wspdm_','train_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for train set
   wxregs_test<-lapply(list('test_tempm_','test_hum_','test_wspdm_','test_pressurem_'),function(x) load(paste(wip_dir,x,i,'.csv',sep=''))) # load weather covariates for test set
-  test_pred_vw<-arima_v(train,test,batch=4,freq=4,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal predictions for this day
-  write.csv(data.frame('date'=rownames(test_pred_vw),test_pred_vw),file=paste(exp_dir,'arima_vw_',i,'.csv',sep=''),quote = FALSE) # write results
+  test_pred_vwi<-arima_v(train,test,batch=4,freq=4,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal predictions for this day
+  save(data=test_pred_hwi,path=paste(exp_dir,'arima_vw_',i,'.csv',sep='')) # write results
 }
 
 
@@ -187,13 +187,14 @@ wxregs_test<-lapply(list('test_tempm.csv','test_hum.csv','test_wspdm.csv','test_
 # K<-f_ords(train,freq=365.25*24,freqs=c(24,7*24),max_order=10) # find best fourier coefficients
 K=c(10,6)
 test_pred_hfw<-arima_h(train,test,batch=28,freq=24,f_K=K,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal prediction
-write.csv(data.frame('date'=rownames(test_pred_hfw),test_pred_hfw),file=paste(exp_dir,'arima_hfw','.csv',sep=''),quote = FALSE) # write predictions
+save(data=test_pred_hfw,path=paste(exp_dir,'arima_hfw.csv',sep='')) # write results
 
 # vertical predictions
 K<-f_ords(train,freq=365.25,freqs=c(7),max_order=3) # find best fourier coefficients
 K=c(10)
 test_pred_vfw<-arima_h(train,test,batch=28,freq=7,f_K=K,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # vertical prediction
-write.csv(data.frame('date'=rownames(test_pred_vfw),test_pred_vfw),file=paste(exp_dir,'arima_vfw','.csv',sep=''),quote = FALSE) # write predictions
+save(data=test_pred_vfw,path=paste(exp_dir,'arima_vfw.csv',sep='')) # write results
+
 
 
 
