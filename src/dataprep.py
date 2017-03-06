@@ -7,7 +7,7 @@ import csv
 from json import loads
 from urllib.request import urlopen
 
-# loads & formats data
+# loads load profiles
 def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
 	data=pd.read_csv(path,header=0,sep=";",usecols=[0,1,2], names=['date','time','load'],dtype={'load': np.float64},na_values=['?'], parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
 	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
@@ -15,9 +15,6 @@ def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumpti
 	data=pd.pivot_table(data,index=['date','hour'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
 	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
 	data=data.applymap(lambda x:(x*1000)/60) # convert kW to Wh
-	data=cut(data) # remove incomplete first and last days
-	# TODO: HANDLE MISSING VALUES
-	data=data.mean(axis=1,skipna=False).unstack()  # average load across hours, preserving nans
 	return data
 
 # loads file
@@ -87,10 +84,8 @@ def load_concat_w(paths,index='timestamp',cols=['tempm','hum','pressurem','wspdm
 	return data
 
 # combines minute time intervals into hours
-def m2h(data,nan='keep'):
-	if nan=='keep': # if we want to keep Nans
-		data= data.apply(axis=1,func=(lambda x: np.nan if (x.isnull().sum()>0) else x.mean())).unstack() # custom sum function where any Nan in minute time interval results in Nan for hour time interval
-	data.index=pd.to_datetime(data.index) # convert string representation of dates in index to datetime index
+def m2h(data):
+	data=data.mean(axis=1,skipna=False).unstack()  # average load across hours, preserving nans
 	return data
 
 # flattens data, converts columns into a multiindex level

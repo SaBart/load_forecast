@@ -1,7 +1,7 @@
 library(forecast)
 source('dataprep.R')
 
-bats_w=function(train,test,hor=1,batch=7,freqs=c(24,7*24,365.25*24)){
+tbats_w=function(train,test,hor=1,batch=7,freqs=c(24,7*24,365.25*24)){
   total=nrow(test) # number of days to predict
   ppb <- tkProgressBar(title = "ETS", min = 0, max = total, width = 500) # initialize progress bar
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test)))) # initialize matrix for predictions
@@ -10,10 +10,10 @@ bats_w=function(train,test,hor=1,batch=7,freqs=c(24,7*24,365.25*24)){
   for (i in seq(0,length(test)-hor,hor)){ # for each sample in test set
     train_ts<-msts(c(train,test[seq_len(i)]),seasonal.periods=freq) # add new observations from test set to the current train set
     if (i%%batch==0){ # # if its time to retrain
-      model=bats(test_ts,use.parallel=TRUE) # find best model on the current train set
+      model=tbats(test_ts,use.parallel=TRUE) # find best model on the current train set
     }
     else{ # it is not the time to retrain
-      model=bats(test_ts,model=model) # do not train, use current model with new observations
+      model=tbats(test_ts,model=model) # do not train, use current model with new observations
     }
     test_pred[(i%/%hor)+1,]=forecast(model,h=hor)$mean # predict new values
     setTkProgressBar(pb, i,label=paste( (i%/%hor)+1,'/',total)) # update progress
@@ -22,11 +22,11 @@ bats_w=function(train,test,hor=1,batch=7,freqs=c(24,7*24,365.25*24)){
   return(test_pred)
 }
 
-bats_h=function(train,test,batch=7,freqs=c(24,7*24,365.25*24)){
+tbats_h=function(train,test,batch=7,freqs=c(24,7*24,365.25*24)){
   return(bats_w(train,test,hor=24,batch=batch,freqs=freqs))
 }
 
-bats_v=function(train,test,batch=7,freqs=c(7*24,365.25*24)){
+tbats_v=function(train,test,batch=7,freqs=c(7*24,365.25*24)){
   test_pred=as.data.frame(lapply(test, function(x) rep.int(NA, length(x)))) # template dataframe for predictions
   for (col in names(train)){
     train_day=as.data.frame(train[[col]]) # convert dataframe column to dataframe
@@ -45,11 +45,11 @@ train<-load(paste(wip_dir,'train.csv', sep='')) # load train set
 test<-load(paste(wip_dir,'test.csv', sep='')) # load test set
 
 # horizontal prediction
-test_pred_h=bats_h(train,test,batch=28,freqs=c(24,7*24,365.25*24)) # predict values
+test_pred_h=tbats_h(train,test,batch=28,freqs=c(24,7*24,365.25*24)) # predict values
 save(data=test_pred_h,path=paste(exp_dir,'bats_h.csv',sep='')) # write results
 
 # vertical predictions
-test_pred_v=bats_v(train,test,batch=28,freqs=c(7*24,365.25*24)) # predict values
+test_pred_v=tbats_v(train,test,batch=28,freqs=c(7*24,365.25*24)) # predict values
 save(data=test_pred_hw,path=paste(exp_dir,'bats_v.csv',sep='')) # write results
 
 

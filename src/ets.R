@@ -3,7 +3,7 @@ library('tcltk')
 source('dataprep.R')
 
 
-ets_w<-function(train,test,hor=1,batch=7,freq=7){
+ets_w<-function(train,test,hor=1,batch=7,freq=7,box_cox=FALSE){
   total=nrow(test) # number of days to predict
   pb <- tkProgressBar(title = "ETS", min = 0, max = total, width = 500) # initialize progress bar
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test)))) # initialize matrix for predictions
@@ -12,13 +12,14 @@ ets_w<-function(train,test,hor=1,batch=7,freq=7){
   for (i in seq(0,length(test)-hor,hor)){ # for each sample in test set
     train_ts<-ts(c(train,test[seq_len(i)]),frequency=freq) # add new observations from test set to the current train set
     if (i%%batch==0){ # # if its time to retrain
-      model<-ets(test_ts) # find best model on the current train set
+      bc_lambda<-if (box_cox) BoxCox.lambda(train,method='') else NULL # estimate lambda for Box-Cox transformation
+      model<-ets(test_ts,lambda = bc_lambda) # find best model on the current train set
       print(model$components) # print the type of model
     }
     else{ # it is not the time to retrain
-      model<-ets(test_ts,model=model) # do not train, use current model with new observations
+      model<-ets(test_ts,model=model,lambda=bc_lambda) # do not train, use current model with new observations
     }
-    test_pred[(i%/%hor)+1,]<-forecast(model,h=hor)$mean # predict new values
+    test_pred[(i%/%hor)+1,]<-forecast(model,h=hor,lambda=bc_lambda)$mean # predict new values
     setTkProgressBar(pb, i,label=paste( (i%/%hor)+1,'/',total)) # update progress
   }
   close(pb) # close progress bar

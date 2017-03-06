@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import dataprep as dp
+import datavis as dv
 import patsy
 import gc
 import rpy2.robjects as ro
@@ -13,19 +14,26 @@ from rpy2.robjects.packages import importr
 from sklearn.metrics import r2_score
 from tqdm import tqdm
 from importlib import reload
-from dataprep import split
 
+# CONSTANTS
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory containing results of experiments
 wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # work in progress directory
 
-# load and format energy consumption
-data=dp.load_lp(data_dir+'household_power_consumption.csv') # load & format data & fill missing values
-load_raw=dp.load(data_dir+'household_power_consumption.csv') # load data
-load_raw=dp.cut(load_raw) # remove leading & trailing Nans
-targets=dp.m2h(load_raw,nan='keep') # minutes to hours, preserving nans
-targets.fillna(method='bfill',inplace=True) # fill nans withprevious values
+# load data
+data=dp.load_lp(data_dir+'household_power_consumption.csv') # load data
+data=dp.cut(data) # remove incomplete first and last days
 
+# visualize data
+dv.nan_hist(data) # histogram of nans
+dv.nan_bar(data) # bar chart of nans
+dv.nan_heat(data) # heatmap of nans
+
+data=dp.m2h(data) # minutes to hours, preserving nans
+data.fillna(method='bfill',inplace=True) # fill nans withprevious values
+
+
+# prepate train & test sets
 train,test=dp.split_train_test(data=data, test_size=0.25, base=7) # split into train & test sets
 dp.save(data=train,path=wip_dir+'train.csv') # save train set
 dp.save(data=test,path=wip_dir+'test.csv') # save test set
@@ -58,3 +66,9 @@ for name,data in weather_split.items():
 paths=[wip_dir + path for path in ['test_0.csv','test_1.csv','test_2.csv','test_3.csv','test_4.csv','test_5.csv','test_6.csv']]
 data=dp.load_merge(paths,index='date')
 test=dp.load(wip_dir+'test.csv',index='date')
+
+
+
+
+
+
