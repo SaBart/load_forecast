@@ -13,6 +13,7 @@ def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumpti
 	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
 	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
 	data=pd.pivot_table(data,index=['date','hour'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
+	data=order(data) # order data if necessary
 	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
 	data=data.applymap(lambda x:(x*1000)/60) # convert kW to Wh
 	return data
@@ -104,10 +105,10 @@ def cut(data):
 	return data
 
 # shifts data for time series forcasting
-def shift(data,n_shifts=1,shift=1):
+def shift(data,n_shifts=1,shift=1,target_label='targets'):
 	data_shifted={} # lagged dataframes for merging
 	for i in range(0,n_shifts+1): # for each time step
-		label='targets' # label for target values
+		label=target_label # label for target values
 		if i!=n_shifts:label='t-{}'.format(n_shifts-i) # labels for patterns
 		data_shifted[label]=data.shift(-i*shift) # add lagged dataframe
 	res=pd.concat(data_shifted.values(),axis=1,join='inner',keys=data_shifted.keys()) # merge lagged dataframes
@@ -115,7 +116,7 @@ def shift(data,n_shifts=1,shift=1):
 
 # order timesteps from the oldest
 def order(data):
-	data=data[sorted(data.columns,reverse=True,key=(lambda x:x[0]))] # sort first level of column multiindex in descending order
+	if not data.index.is_monotonic_increasing: data=data.sort_index() # sort dates if necessary
 	return data
 	
 # split data into patterns & targets
@@ -125,10 +126,14 @@ def split_X_Y(data,target_label='targets'):
 	return X, Y
 
 # split data into train & test sets
-def split_train_test(data, base=7,test_size=0.25): # in time series analysis order of samples usually matters, so no shuffling of samples
-	idx=flr((1-test_size)*len(data),base) if test_size>0 else len(data) # calculate number of samples in train set 
-	train,test =data[:idx],data[idx:] # split data into train & test sets
+def train_test(data, base=7,test_size=0.25): # in time series analysis order of samples usually matters, so no shuffling of samples
+	split_idx=round_rem(total=len(data),base=base,test_size=test_size) # calculate the index that splits dataset into train, test
+	train,test =data[:split_idx],data[split_idx:] # split data into train & test sets
 	return train,test
+
+# returns number n that the (total-n) is rounded to base and (total-n)/total>test_size  
+def round_rem(total,base=7,test_size=0.25):
+	return total-round_u(total-(1-test_size)*total,base) if test_size>0 else total # calculate the index that splits dataset into train, test
 
 # split data into n datasets (according to weekdays)
 def split(data,nsplits=7): 
@@ -141,5 +146,18 @@ def load_merge(paths,index='date'):
 	return data	
 	
 # rounds down to the nearest multiple of base
-def flr(x,base=7):
+def round_d(x,base=7):
 	return base*int(x/base)
+
+# rounds up to the nearest multiple of base
+def round_u(x,base=7):
+	if x%base==0: result=x
+	else: result=base*int((x+base)/base)
+	return result
+
+# construct training & testing sets for time series cross validation
+def tscv(total,base=7,test_size=0.25,batch=28):
+	len_train=round_rem(total=total,base=base,test_size=test_size) # calculate number of training samples
+	tscv_iter=[(np.arange(i),i+np.arange(min(batch,total-i))) for i in range(len_train,total,part_size)] # construct the iterator, a list of tuples, each containing train & test indices
+	return tscv_iter
+	

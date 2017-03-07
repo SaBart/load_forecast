@@ -7,11 +7,8 @@ import numpy as np
 # plot histogram of missing values
 def nan_hist(data):
 	nans=data.isnull().sum(axis=1) # count NaNs row-wise
-	# nans=nans[nans>0] # remove empty entries
 	_,ax = plt.subplots() # get axis handle
 	ax.set_yscale('log') # set logarithmic scale for y-values
-	#ax.set_xticks(np.arange(61)+0.5)
-	#ax.set_xticklabels(range(61))
 	ax.set_xlim(xmin=-0.5, xmax=60.5)
 	ax.set_ylim(ymin=0.5,ymax=nans.unique().max())
 	ax.set_yticks(nans.value_counts())

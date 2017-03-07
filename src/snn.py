@@ -42,7 +42,7 @@ for i in range(1,6): # optimize for number of time steps
 	grid_space['n_in']=[X.shape[1]] # workaround for enabling varying pattern lengths corresponding to the number of time steps
 	model=KerasRegressor(build_fn=create_model,verbose=0) # create model template
 	grid_setup = GridSearchCV(estimator=model, param_grid=grid_space, cv=TimeSeriesSplit(n_splits=3),n_jobs=1, scoring=make_scorer(r2_score,multioutput='uniform_average'), verbose=10) # set up the grid search
-	grid_result = grid_setup.fit(X.as_matrix(), Y.as_matrix()) # fild best parameters
+	grid_result = grid_setup.fit(X.as_matrix(), Y.as_matrix()) # fit best parameters
 	# summarize results
 	print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_)) # print best parameters	means = grid_result.cv_results_['mean_test_score']	stds = grid_result.cv_results_['std_test_score']	params = grid_result.cv_results_['params']	for mean, stdev, param in zip(means, stds, params):	print("%f (%f) with: %r" % (mean, stdev, param)) # print all sets of parameters
 
