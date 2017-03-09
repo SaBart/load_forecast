@@ -107,11 +107,11 @@ def cut(data):
 # shifts data for time series forcasting
 def shift(data,n_shifts=1,shift=1,target_label='targets'):
 	data_shifted={} # lagged dataframes for merging
-	for i in range(0,n_shifts+1): # for each time step
+	for i in range(n_shifts+1): # for each time step
 		label=target_label # label for target values
-		if i!=n_shifts:label='t-{}'.format(n_shifts-i) # labels for patterns
-		data_shifted[label]=data.shift(-i*shift) # add lagged dataframe
-	res=pd.concat(data_shifted.values(),axis=1,join='inner',keys=data_shifted.keys()) # merge lagged dataframes
+		if i!=0:label='t-{}'.format(i) # labels for patterns
+		data_shifted[label]=data.shift(i*shift) # add lagged dataframe
+	res=pd.concat(data_shifted.values(),axis='columns',keys=data_shifted.keys()) # merge lagged dataframes
 	return res.dropna() # TODO: handling missing values
 
 # order timesteps from the oldest
@@ -158,6 +158,5 @@ def round_u(x,base=7):
 # construct training & testing sets for time series cross validation
 def tscv(total,base=7,test_size=0.25,batch=28):
 	len_train=round_rem(total=total,base=base,test_size=test_size) # calculate number of training samples
-	tscv_iter=[(np.arange(i),i+np.arange(min(batch,total-i))) for i in range(len_train,total,part_size)] # construct the iterator, a list of tuples, each containing train & test indices
+	tscv_iter=[(np.arange(i),i+np.arange(min(batch,total-i))) for i in range(len_train,total,batch)] # construct the iterator, a list of tuples, each containing train & test indices
 	return tscv_iter
-	
