@@ -6,6 +6,9 @@ import pandas as pd
 import csv
 from json import loads
 from urllib.request import urlopen
+import rpy2.robjects as ro
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.packages import importr
 
 # loads load profiles
 def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
@@ -91,7 +94,7 @@ def m2h(data):
 
 # flattens data, converts columns into a multiindex level
 def flatten(data):
-	if not isinstance(data, pd.Series): data=data.stack() # if not series (already flat) then flatten
+	if not isinstance(data, pd.Series): data=data.stack(dropna=False) # if not series (already flat) then flatten
 	return data
 	
 # remove incomplete first and last days
@@ -160,3 +163,25 @@ def tscv(total,base=7,test_size=0.25,batch=28):
 	len_train=round_rem(total=total,base=base,test_size=test_size) # calculate number of training samples
 	tscv_iter=[(np.arange(i),i+np.arange(min(batch,total-i))) for i in range(len_train,total,batch)] # construct the iterator, a list of tuples, each containing train & test indices
 	return tscv_iter
+
+# standardise data
+def z_val(data):
+	data_flat=flatten(data) # flatten data  
+	mean=data_flat.mean() # get mean
+	std=data_flat.std() # get std
+	return (data-mean)/std,mean,std
+
+# invert standardisation
+def z_inv(data,mean,std):
+	return (data*std)+mean
+
+# impute missing values using R
+def impute(data,freq=24,method=''):
+	pandas2ri.activate() # activate connection
+	impts=importr('imputeTS') # package for time series imputation
+	if method=='seadec':
+		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(flatten(data).values),algorithm='interpolation')) # get results of imputation from R
+		data=pd.DataFrame(index=data.index,columns=data.columns,data=np.reshape(result,newshape=(len(data.index),len(data.columns)), order='C')) # construct DataFrame using original index and columns
+	return data
+		
+	
