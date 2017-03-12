@@ -93,8 +93,13 @@ def m2h(data):
 	return data
 
 # flattens data, converts columns into a multiindex level
-def flatten(data):
-	if not isinstance(data, pd.Series): data=data.stack(dropna=False) # if not series (already flat) then flatten
+def d2s(data):
+	if not isinstance(data, pd.Series): data=data.stack(dropna=False) # if not Series (already flat) then flatten
+	return data
+	
+# invert d2s operation
+def s2d(data):
+	if not isinstance(data, pd.DataFrame): data=data.unstack() # if not DataFrame (not flat) then unflatten
 	return data
 	
 # remove incomplete first and last days
@@ -166,7 +171,7 @@ def tscv(total,base=7,test_size=0.25,batch=28):
 
 # standardise data
 def z_val(data):
-	data_flat=flatten(data) # flatten data  
+	data_flat=d2s(data) # flatten DataFrame into a Series
 	mean=data_flat.mean() # get mean
 	std=data_flat.std() # get std
 	return (data-mean)/std,mean,std
@@ -176,12 +181,38 @@ def z_inv(data,mean,std):
 	return (data*std)+mean
 
 # impute missing values using R
-def impute(data,freq=24,method=''):
+def impute(data,method=''):
 	pandas2ri.activate() # activate connection
 	impts=importr('imputeTS') # package for time series imputation
 	if method=='seadec':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(flatten(data).values),algorithm='interpolation')) # get results of imputation from R
+		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(d2s(data).values),algorithm='interpolation')) # get results of imputation from R
+		data=pd.DataFrame(index=data.index,columns=data.columns,data=np.reshape(result,newshape=(len(data.index),len(data.columns)), order='C')) # construct DataFrame using original index and columns
+	if method=='kalman':
+		result=pandas2ri.ri2py(impts.na_kalman(ro.FloatVector(d2s(data).values),model='auto.arima')) # get results of imputation from R
 		data=pd.DataFrame(index=data.index,columns=data.columns,data=np.reshape(result,newshape=(len(data.index),len(data.columns)), order='C')) # construct DataFrame using original index and columns
 	return data
-		
+
+# returns the longest continuous subset (LCS) of non Nan values
+def lcs(data):
+	data=d2s(data) # flatten data into a Series
+	d=data.copy() # copy to preserve original values
+	d.loc[~d.isnull()] = 1  # replace non Nans
+	d.loc[d.isnull()]=-len(data) # replace Nans
+	max_g=(d.iloc[0],0,1) # tuple of (global max |LCS|,start index of LCS, end index of LCS)
+	max_l=max_g # initial assignment
+	for i in range(1,len(data)): 
+		m,l,u=max_l # parse tuple
+		if (m+d.iloc[i]>=m): # LCS can be prolonged
+			m=m+d.iloc[i] # update max
+			u=i # update upper bound
+			max_l=(m,l,u) # pack into tuple
+		else: # LCS cannot be prolonged
+			max_l=(d.iloc[i],i,i+1) # start new LCS
+		if (max_l>=max_g): # best so far
+			max_g=max_l # update max, lower & upper bounds
+			print(max_g)
+	m,l,u=max_g # parse tuple
+	data=s2d(data.iloc[l:u]) # get LCS
+	return data # return LCS
+	
 	

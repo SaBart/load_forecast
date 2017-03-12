@@ -29,9 +29,11 @@ dv.nan_hist(data) # histogram of nans
 dv.nan_bar(data) # bar chart of nans
 dv.nan_heat(data) # heatmap of nans
 
-data=dp.m2h(data) # minutes to hours, preserving nans
-data.fillna(method='bfill',inplace=True) # fill nans withprevious values
+# fill missiong values
+data_lcs=dp.lcs(data) # get the longest continuous subset (LCS)
 
+
+data=dp.m2h(data) # minutes to hours
 
 # prepate train & test sets
 train,test=dp.split_train_test(data=data, test_size=0.25, base=7) # split into train & test sets
