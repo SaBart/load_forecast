@@ -4,11 +4,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import csv
-from json import loads
-from urllib.request import urlopen
 import rpy2.robjects as ro
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
+from json import loads
+from urllib.request import urlopen
+from copy import deepcopy
 
 # loads load profiles
 def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
@@ -161,7 +162,7 @@ def round_d(x,base=7):
 def round_u(x,base=7):
 	if x%base==0: result=x
 	else: result=base*int((x+base)/base)
-	return result
+	return int(result)
 
 # construct training & testing sets for time series cross validation
 def tscv(total,base=7,test_size=0.25,batch=28):
@@ -192,27 +193,58 @@ def impute(data,method=''):
 		data=pd.DataFrame(index=data.index,columns=data.columns,data=np.reshape(result,newshape=(len(data.index),len(data.columns)), order='C')) # construct DataFrame using original index and columns
 	return data
 
-# returns the longest continuous subset (LCS) of non Nan values
-def lcs(data):
+# returns the longest no outage (LNO)== longest continuous subset with no nan values
+def lno(data):
 	data=d2s(data) # flatten data into a Series
-	d=data.copy() # copy to preserve original values
-	d.loc[~d.isnull()] = 1  # replace non Nans
-	d.loc[d.isnull()]=-len(data) # replace Nans
-	max_g=(d.iloc[0],0,1) # tuple of (global max |LCS|,start index of LCS, end index of LCS)
-	max_l=max_g # initial assignment
+	if (data.iloc[0]==data.iloc[0]): # first value is not nan
+		lno_g=(0,1) # tuple of (start index of LNO, end index of LNO) for global LNO
+	else: # first value is nan
+		lno_g=(0,0)
+	lno_l=lno_g # initial assignment
 	for i in range(1,len(data)): 
-		m,l,u=max_l # parse tuple
-		if (m+d.iloc[i]>=m): # LCS can be prolonged
-			m=m+d.iloc[i] # update max
-			u=i # update upper bound
-			max_l=(m,l,u) # pack into tuple
+		l,u=lno_l # parse tuple
+		if (data.iloc[i]==data.iloc[i]): # LNO can be prolonged
+			u=i+1 # update upper bound
+			lno_l=(l,u) # pack into tuple
 		else: # LCS cannot be prolonged
-			max_l=(d.iloc[i],i,i+1) # start new LCS
-		if (max_l>=max_g): # best so far
-			max_g=max_l # update max, lower & upper bounds
-			print(max_g)
-	m,l,u=max_g # parse tuple
-	data=s2d(data.iloc[l:u]) # get LCS
-	return data # return LCS
+			lno_l=(i,i) # start new LNO
+		if (u-l>=lno_g[1]-lno_g[0]): # best so far
+			lno_g=(l,u) # update lower & upper bounds
+	l,u=lno_g # parse tuple
+	data=s2d(data.iloc[l:u]) # get LNO
+	return data # return LNO
 	
+# introduce outages to data according to distribution	
+def add_out(data,dist):
+	data_copy=deepcopy(data) # copy dataframe
+	data=d2s(data_copy) # flatten dataframe
+	prob=np.random.choice(list(dist.keys()),len(data),p=list(dist.values())) # generate lengths of outages
+	i=0 # start position
+	while i<len(data):
+		l=round_u(prob[i]*len(data),base=1) # length of outage
+		if l>0: # outage occurred
+			print('i:{},l:{}'.format(i,l))
+			data[i:i+l]=np.nan # introduce new outage of length l
+			i+=l # shift current position to the end of outage interval
+		else: i+=1 # no outage, next position
+	return s2d(data)
 	
+# returns the distribution outage (consecutive nans) lengths
+def out_dist(data):
+	data=d2s(data) # flatten dataframe
+	out_cnts={} # dictionry of outage counts
+	out=0 # length of outage
+	for i in range(len(data)):
+		if data.iloc[i]!=data.iloc[i]: # if nan
+			out+=1 # increment current number of consecutive nans
+		else: 
+			if out in out_cnts: out_cnts[out] += 1 # increment dictionary entry
+			else: out_cnts[out] = 1 # new entry in dictionary
+			out=0 # reset the number of consecutive nans
+	if out in out_cnts: out_cnts[out] += 1 # increment dictionary entry
+	else: out_cnts[out] = 1 # new entry in dictionary
+	out_cnt=sum(out_cnts.values()) # total number of outages (zero length included)
+	out_dist={} # dictionary for outage distribution
+	for olen,ocnt in out_cnts.items(): # for each entry in outage counts
+		out_dist[olen/len(data)]=ocnt/out_cnt # transform key and value into fractions
+	return out_dist

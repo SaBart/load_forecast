@@ -30,8 +30,10 @@ dv.nan_bar(data) # bar chart of nans
 dv.nan_heat(data) # heatmap of nans
 
 # fill missiong values
-data_lcs=dp.lcs(data) # get the longest continuous subset (LCS)
+data_lno=dp.lno(data) # get the longest continuous subset (LCS)
+out_dist=dp.out_dist(data) # get the distribution of outage lengths
 
+dp.add_out(data=data_lno,dist=out_dist)
 
 data=dp.m2h(data) # minutes to hours
 
