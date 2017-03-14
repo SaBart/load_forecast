@@ -129,7 +129,7 @@ def order(data):
 	return data
 	
 # split data into patterns & targets
-def split_X_Y(data,target_label='targets'):
+def X_Y(data,target_label='targets'):
 	X=data.select(lambda x:x[0] not in [target_label], axis=1) # everything not labelled "target" is a pattern, [0] refers to the level of multi-index
 	Y=data[target_label] # targets
 	return X, Y
@@ -180,71 +180,3 @@ def z_val(data):
 # invert standardisation
 def z_inv(data,mean,std):
 	return (data*std)+mean
-
-# impute missing values using R
-def impute(data,method=''):
-	pandas2ri.activate() # activate connection
-	impts=importr('imputeTS') # package for time series imputation
-	if method=='seadec':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(d2s(data).values),algorithm='interpolation')) # get results of imputation from R
-		data=pd.DataFrame(index=data.index,columns=data.columns,data=np.reshape(result,newshape=(len(data.index),len(data.columns)), order='C')) # construct DataFrame using original index and columns
-	if method=='kalman':
-		result=pandas2ri.ri2py(impts.na_kalman(ro.FloatVector(d2s(data).values),model='auto.arima')) # get results of imputation from R
-		data=pd.DataFrame(index=data.index,columns=data.columns,data=np.reshape(result,newshape=(len(data.index),len(data.columns)), order='C')) # construct DataFrame using original index and columns
-	return data
-
-# returns the longest no outage (LNO)== longest continuous subset with no nan values
-def lno(data):
-	data=d2s(data) # flatten data into a Series
-	if (data.iloc[0]==data.iloc[0]): # first value is not nan
-		lno_g=(0,1) # tuple of (start index of LNO, end index of LNO) for global LNO
-	else: # first value is nan
-		lno_g=(0,0)
-	lno_l=lno_g # initial assignment
-	for i in range(1,len(data)): 
-		l,u=lno_l # parse tuple
-		if (data.iloc[i]==data.iloc[i]): # LNO can be prolonged
-			u=i+1 # update upper bound
-			lno_l=(l,u) # pack into tuple
-		else: # LCS cannot be prolonged
-			lno_l=(i,i) # start new LNO
-		if (u-l>=lno_g[1]-lno_g[0]): # best so far
-			lno_g=(l,u) # update lower & upper bounds
-	l,u=lno_g # parse tuple
-	data=s2d(data.iloc[l:u]) # get LNO
-	return data # return LNO
-	
-# introduce outages to data according to distribution	
-def add_out(data,dist):
-	data_copy=deepcopy(data) # copy dataframe
-	data=d2s(data_copy) # flatten dataframe
-	prob=np.random.choice(list(dist.keys()),len(data),p=list(dist.values())) # generate lengths of outages
-	i=0 # start position
-	while i<len(data):
-		l=round_u(prob[i]*len(data),base=1) # length of outage
-		if l>0: # outage occurred
-			print('i:{},l:{}'.format(i,l))
-			data[i:i+l]=np.nan # introduce new outage of length l
-			i+=l # shift current position to the end of outage interval
-		else: i+=1 # no outage, next position
-	return s2d(data)
-	
-# returns the distribution outage (consecutive nans) lengths
-def out_dist(data):
-	data=d2s(data) # flatten dataframe
-	out_cnts={} # dictionry of outage counts
-	out=0 # length of outage
-	for i in range(len(data)):
-		if data.iloc[i]!=data.iloc[i]: # if nan
-			out+=1 # increment current number of consecutive nans
-		else: 
-			if out in out_cnts: out_cnts[out] += 1 # increment dictionary entry
-			else: out_cnts[out] = 1 # new entry in dictionary
-			out=0 # reset the number of consecutive nans
-	if out in out_cnts: out_cnts[out] += 1 # increment dictionary entry
-	else: out_cnts[out] = 1 # new entry in dictionary
-	out_cnt=sum(out_cnts.values()) # total number of outages (zero length included)
-	out_dist={} # dictionary for outage distribution
-	for olen,ocnt in out_cnts.items(): # for each entry in outage counts
-		out_dist[olen/len(data)]=ocnt/out_cnt # transform key and value into fractions
-	return out_dist

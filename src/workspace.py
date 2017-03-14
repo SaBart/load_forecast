@@ -30,15 +30,18 @@ dv.nan_bar(data) # bar chart of nans
 dv.nan_heat(data) # heatmap of nans
 
 # fill missiong values
-data_lno=dp.lno(data) # get the longest continuous subset (LCS)
+data_lno=dp.lno(data) # get the longest no outage (LNO)
+data_lno=dp.cut(data_lno) # # remove incomplete first and last days
 out_dist=dp.out_dist(data) # get the distribution of outage lengths
+data_out=dp.add_out(data=data_lno,dist=out_dist) # add outages
 
-dp.add_out(data=data_lno,dist=out_dist)
+
+
 
 data=dp.m2h(data) # minutes to hours
 
 # prepate train & test sets
-train,test=dp.split_train_test(data=data, test_size=0.25, base=7) # split into train & test sets
+train,test=dp.train_test(data=data, test_size=0.25, base=7) # split into train & test sets
 dp.save(data=train,path=wip_dir+'train.csv') # save train set
 dp.save(data=test,path=wip_dir+'test.csv') # save test set
 dp.save_dict(dic=dp.split(train,nsplits=7),path=wip_dir+'train_') # split train set according to weekdays and save each into a separate file
@@ -60,7 +63,7 @@ weather=dp.load_concat_w([data_dir+path for path in paths],index='timestamp',col
 weather.fillna(method='bfill',inplace=True) # fill missiong values
 weather_split=dp.split_cols(weather) # dictionary of dataframes each containing only one weather attribute values
 for name,data in weather_split.items():
-	train_w,test_w=dp.split_train_test(data=data, test_size=0.25, base=7) # split into train & test sets
+	train_w,test_w=dp.train_test(data=data, test_size=0.25, base=7) # split into train & test sets
 	dp.save(data=train_w,path=wip_dir+'train_'+name+'.csv') # save train set
 	dp.save(data=test_w,path=wip_dir+'test_'+name+'.csv') # save test set
 	dp.save_dict(dic=dp.split(train_w,nsplits=7), path=wip_dir+'train_'+name+'_') # split train set according to weekdays and save each into a separate file
