@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import dataprep as dp
 import datavis as dv
+import imputation as imp
 import patsy
 import gc
 import rpy2.robjects as ro
@@ -30,6 +31,7 @@ dv.nan_bar(data) # bar chart of nans
 dv.nan_heat(data) # heatmap of nans
 
 # fill missiong values
+data=imp.auto_impute(data, n_iter=10) # choose best imputation method & impute 
 data_lno=dp.lno(data) # get the longest no outage (LNO)
 data_lno=dp.cut(data_lno) # # remove incomplete first and last days
 out_dist=dp.out_dist(data) # get the distribution of outage lengths
