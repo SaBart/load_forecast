@@ -13,7 +13,6 @@ from copy import deepcopy
 
 # impute missing values using R
 def imp(data,method=''):
-	data=dp.d2s(data) # flatten dataframe into series
 	pandas2ri.activate() # activate connection
 	impts=importr('imputeTS') # package for time series imputation
 	if method=='seadec':
@@ -25,8 +24,7 @@ def imp(data,method=''):
 	return data
 
 # returns the longest no outage (LNO)== longest continuous subset with no nan values
-def lno(data):
-	data=dp.d2s(data) # flatten data into a Series	
+def lno(data):	
 	u=l=U=L=0 # initial assignment to local & global bounds
 	while u<len(data) and l<len(data): # while bounds are within dataframe
 		l=u# set the lower bound to the same position as the uper bound
@@ -38,21 +36,21 @@ def lno(data):
 	
 # introduce outages to data according to distribution	
 def add_out(data,dist):
-	data=dp.d2s(data) # flatten dataframe
 	prob=np.random.choice(list(dist.keys()),len(data),p=list(dist.values())) # generate lengths of outages
-	i=0 # start position
-	while data.isnull().sum().sum()==0: # while there is no outage
-		while i<len(data): # iterate and add outages
-			l=dp.round_u(prob[i]*len(data),base=1) # length of outage
+	while True: # while there is no outage
+		data_out=deepcopy(data) # copy dataframe to preserve original values
+		i=0 # reset start position
+		while i<len(data_out): # iterate and add outages
+			l=dp.round_u(prob[i]*len(data_out),base=1) # length of outage
 			if l>0: # outage occurred
-				data[i:i+l]=np.nan # introduce new outage of length l
+				data_out[i:i+l]=np.nan # introduce new outage of length l
 				i+=l # shift current position to the end of outage interval
 			else: i+=1 # no outage, next position
-	return data
+		if data_out.isnull().sum()>0: break
+	return data_out
 	
 # returns the distribution outage (consecutive nans) lengths
 def out_dist(data):
-	data=dp.d2s(data) # flatten dataframe
 	out_cnts={} # dictionry of outage counts
 	out=0 # length of outage
 	for i in range(len(data)):
@@ -72,10 +70,9 @@ def out_dist(data):
 
 # returns data imputed with the best method
 def opt_imp(data,n_iter=10,methods=['seadec','kalman']):
-	data_c=deepcopy(data) # copy dataframe
-	data_c=dp.d2s(data_c) # flatten dataframe
-	dist=out_dist(data_c) # get the distribution of outage lengths
-	data_lno=lno(data_c) # get the longest no outage (LNO)
+	data=dp.d2s(data) # flatten dataframe
+	dist=out_dist(data) # get the distribution of outage lengths
+	data_lno=lno(data) # get the longest no outage (LNO)
 	#data_lno=dp.cut(data_lno) # # remove incomplete first and last days
 	results=list() # initialize empty list for results
 	for i in range(n_iter):

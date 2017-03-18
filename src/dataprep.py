@@ -14,10 +14,13 @@ from copy import deepcopy
 # loads load profiles
 def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
 	data=pd.read_csv(path,header=0,sep=";",usecols=[0,1,2], names=['date','time','load'],dtype={'load': np.float64},na_values=['?'], parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
+	data.set_index(keys='date',inplace=True) # set date as an index
 	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
 	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
-	data=pd.pivot_table(data,index=['date','hour'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
-	data=order(data) # order data if necessary
+	data.set_index(keys=['hour','minute'], append=True, inplace=True) # append hour and minute as new multiindex levels 
+	data.drop('time',axis=1,inplace=True) # drop time column
+	#data=pd.pivot_table(data,index=['hour','minute'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
+	#data=order(data) # order data if necessary
 	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
 	data=data.applymap(lambda x:(x*1000)/60) # convert kW to Wh
 	return data

@@ -23,7 +23,9 @@ wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # work in progress directory
 
 # load data
 data=dp.load_lp(data_dir+'household_power_consumption.csv') # load data
-data=dp.cut(data) # remove incomplete first and last days
+dp.save(data,path=data_dir+'data.csv') # save processed data
+data=dp.load(path=data_dir+'data.csv', index='date')
+# data=dp.cut(data) # remove incomplete first and last days
 
 # visualize data
 dv.nan_hist(data) # histogram of nans
