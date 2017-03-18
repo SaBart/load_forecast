@@ -76,7 +76,7 @@ def opt_imp(data,n_iter=10,methods=['seadec','kalman']):
 	data_c=dp.d2s(data_c) # flatten dataframe
 	dist=out_dist(data_c) # get the distribution of outage lengths
 	data_lno=lno(data_c) # get the longest no outage (LNO)
-	data_lno=dp.cut(data_lno) # # remove incomplete first and last days
+	#data_lno=dp.cut(data_lno) # # remove incomplete first and last days
 	results=list() # initialize empty list for results
 	for i in range(n_iter):
 		data_out=add_out(data=data_lno,dist=dist) # add outages
