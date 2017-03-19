@@ -27,42 +27,36 @@ def srmse(pred,true):
 def smape(pred,true):
 	pred=dp.d2s(pred) # DataFrame to Series
 	true=dp.d2s(true) # DataFrame to Series
-	return ((true-pred).abs()/(true.abs()+pred.abs())).mean()
+	return ((pred-true).abs()/(true.abs()+pred.abs())).mean()
 
 # mean absolute scaled error (MASE)
 def mase(pred,true,shift=7*24):
 	pred=dp.d2s(pred) # DataFrame to Series
 	true=dp.d2s(true) # DataFrame to Series
-	return ((pred-true)/(true.shift(shift)-true).dropna().abs().mean()).abs().mean()
+	return (pred-true).abs().mean()/(true.shift(shift)-true).dropna().abs().mean()
 
 # maximum absolute error (MAE)
 def mae(pred,true):
 	pred=dp.d2s(pred) # DataFrame to Series
 	true=dp.d2s(true) # DataFrame to Series
-	return (pred-true).abs().max().max()
+	return (pred-true).abs().max()
 	
 	
 # finds the best shift to use for naive method and MASE
 def opt_shift(data, shifts=[60*24,60*24*7]):
+	data=dp.d2s(data) # DataFrame to Series
 	results=pd.DataFrame() # empty dataframe for scores
 	for s1,s2 in [(s1,s2) for s1 in shifts for s2 in shifts]: # for each shift to consider
-		measures={'MAE':mae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=s2)} # measures to consider
-		score=acc(pred=data.shift(s1).dropna(), true=data.shift(-s1).dropna()) # compute accuracy measures
+		if s1==s2: continue # skip if shifts are equal
+		measures={'MAE':mae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=s2)} # measures to consider	
+		score=acc(pred=data.shift(s1), true=data,label='pred:{},true:{}'.format(s1,s2),measures=measures) # compute accuracy measures
 		results=pd.concat([results,score]) # append computed measures
 	return results
 
 # returns various measures/metrics/scores of goodness of fit 
 def acc(pred,true,label='test',measures={'MAE':mae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=60*24)}):
+	pred=dp.d2s(pred) # DataFrame to Series
+	true=dp.d2s(true) # DataFrame to Series
 	score={name:ms(pred=pred,true=true) for name,ms in measures.items()}
 	results=pd.DataFrame(data=score,index=[label]) # convert dictionary into a dataframe
 	return results
-
-
-measures={'RMSE':rmse,'SMAPE':smape,'MASE':partial(mase,shift=60*24)}
-
-
-
-score={} # initialize dictionary
-	score['RMSE']=rmse(pred=pred,true=true) # compute RMSE
-	score['SMAPE']=smape(pred=pred,true=true) # compute SMAPE
-	score['MASE']=mase(pred=pred,true=true) # compute MASE

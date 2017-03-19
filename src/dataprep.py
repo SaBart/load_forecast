@@ -17,12 +17,13 @@ def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumpti
 	data.set_index(keys='date',inplace=True) # set date as an index
 	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
 	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
-	data.set_index(keys=['hour','minute'], append=True, inplace=True) # append hour and minute as new multiindex levels 
-	data.drop('time',axis=1,inplace=True) # drop time column
+	data.set_index(keys=['hour','minute'], append=True, inplace=True) # append hour and minute as new multiindex levels
+	data=data['load'] # convert the only important column to series
+	data=(data*1000)/60 # convert kW to Wh
+	#data.drop('time',axis=1,inplace=True) # drop time column
 	#data=pd.pivot_table(data,index=['hour','minute'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
 	#data=order(data) # order data if necessary
 	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
-	data=data.applymap(lambda x:(x*1000)/60) # convert kW to Wh
 	return data
 
 # loads file
@@ -108,11 +109,11 @@ def s2d(data):
 	
 # remove incomplete first and last days
 def cut(data):
-	f,_=data.index.min() # first day
-	l,_=data.index.max() # last day
-	if len(data.loc[f])<24: # if first day is incomplete
+	f,_,_=data.index.min() # first day
+	l,_,_=data.index.max() # last day
+	if len(data.loc[f])<24*60: # if first day is incomplete
 		data=data.drop(f,level=0) # drop the whole day
-	if len(data.loc[l])<24: # if last day is incomplete
+	if len(data.loc[l])<24*60: # if last day is incomplete
 		data=data.drop(l,level=0) # drop the whole day
 	return data
 

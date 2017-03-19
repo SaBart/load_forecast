@@ -6,6 +6,7 @@ import pandas as pd
 import dataprep as dp
 import datavis as dv
 import imputation as imp
+import measures as ms
 import patsy
 import gc
 import rpy2.robjects as ro
@@ -33,7 +34,9 @@ dv.nan_bar(data) # bar chart of nans
 dv.nan_heat(data) # heatmap of nans
 
 # fill missiong values
-data=imp.opt_imp(data, n_iter=10) # choose best imputation method & impute
+shift=ms.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for anive predictor for MASE
+measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider	
+data=imp.opt_imp(data, n_iter=10,measures=measures) # choose best imputation method & impute
 
 
 data_lno=dp.lno(data) # get the longest no outage (LNO)
