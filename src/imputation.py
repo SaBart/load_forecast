@@ -10,6 +10,7 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 from copy import deepcopy
 from functools import partial
+from itertools import product
 
 
 # impute missing values using R
@@ -66,11 +67,9 @@ def out_dist(data):
 	return out_dist
 
 # returns data imputed with the best method
-def opt_imp(data,n_iter=10,methods=['locf','nocb','interpol_lin','interpol_spline','interpol_stine','seadec_iterpol','seadec_locf','seadec_mean','seadec_random','seadec_kalman','seadec_ma','kalman_arima','kalman_structTS'],measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
-	#data=dp.d2s(data) # flatten dataframe
+def opt_imp(data,n_iter=10,methods,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
 	dist=out_dist(data) # get the distribution of outage lengths
 	data_lno=lno(data) # get the longest no outage (LNO)
-	#data_lno=dp.cut(data_lno) # # remove incomplete first and last days
 	results=list() # initialize empty list for results
 	for i in range(n_iter):
 		data_out=add_out(data=data_lno,dist=dist) # add outages
@@ -82,41 +81,78 @@ def opt_imp(data,n_iter=10,methods=['locf','nocb','interpol_lin','interpol_splin
 		results.append(result) # add to results
 	return sum(results)/n_iter
 
+# converts dictionary to tuples
+def d2t(d):
+	result=[] # 
+	for key,args in d.items():
+		if not isinstance(args,dict): result+=[[(key,arg) for arg in args]]
+		else:
+			for k,a in args.items():
+				result+=[[[(key,k)]]+d2t(a)]
+	return result
+	
+# converts tuples to kwargs
+def t2k(methods):	
+	return [[[{kw:arg for kw,arg in c} for c in comb] for comb in product(*t)] for t in d2t(methods)]
+	
+	[c for c in [comb for comb in [product(*t) for t in d2t(methods)]]]
+	
+	[c for c in [comb for comb in product(*t)]]
+	
+	for t in d2t(methods):
+		comb=product(*t)
+		for c in comb:print(c)
+	
+	
+# converts dictionary of lists to list of dictionaries (list of all combinations of kwargs)
+def dl2ld(dictionary):
+	return [{kw:arg for kw,arg in comb} for comb in product(*[[(kw,arg) for arg in args] for kw,args in dictionary.items()])] # all combinations of kwargs
 
-impts=importr('imputeTS') # package for time series imputation
-params={'random':{'method':impts.na_random},
-		'mean':{'method':impts.na_mean},
-		'ma':{'method':impts.na_ma},
-		'locf':{'method':impts.na_locf},
-		'interpol':{'method':impts.na_interpolation},
-		'seadec':{'method':impts.na_seadec},
-		'seasplit':{'method':impts.na_seasplit},
-		'kalman':{'method':impts.na_kalman}
-	}	
+	
 
 
+random={}
 mean={'option':['mean','median','mode']} # params for mean
 ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,11)} # params for moving average
-locf={'option':['locf','nocb'],'na_remaining':'rev'} # params for last observation carry forward
+locf={'option':['locf','nocb'],'na_remaining':['rev']} # params for last observation carry forward
 interpol={'option':['linear','spline','stine']} # params for interpolation
 kalman={'model':['auto.arima','structTS']}
 
-methods={impts.na_random:{},
+methods={impts.na_random:random,
 		impts.na_mean:mean,
 		impts.na_ma:ma,
 		impts.na_locf:locf,
 		impts.na_interpolation:interpol,
 		impts.na_kalman:kalman,
-		impts.na_seadec:{'algorithm':['random',{'mean':mean},{'ma':ma},{'locf':locf},{'interpolation':interpol},{'kalman':kalman}]},
-		impts.na_seasplit:{'algorithm':['random',{'mean':mean},{'ma':ma},{'locf':locf},{'interpolation':interpol},{'kalman':kalman}]},
+		impts.na_seadec:{'algorithm':{'random':random,'mean':mean,'ma':ma,'locf':locf,'interpolation':interpol,'kalman':kalman}},
+		impts.na_seasplit:{'algorithm':{'random':random,'mean':mean,'ma':ma,'locf':locf,'interpolation':interpol,'kalman':kalman}},
 	}
 
 for method,params in methods.items():
+	for kwargs in [{kw:arg for kw,arg in comb} for comb in product(*[[(kw,arg) for arg in args] for kw,args in params.items()])]: # for all combinations of kwargs
+		print(kwargs)
+		#data_imp=imp(data=data_out,method=method,**kwargs)
+	
+
+
+
+
+for kwargs in [{kw:arg for kw,arg in comb}for comb in product(*[[(kw,arg) for arg in args] for kw,args in params.items()])]: print(kwargs)
+	
+	
+[[[(kw,k) for k,a in dict.items()] for dict in args] for kw,args in params.items()]
+	
 	# TODO: make [**kwargs] for all combination in params
+	kwargs=[{kw:arg for kw,arg in params.items()}]
+	{ for in product(params.values())}
+	print(kwargs)
 	# if element of params is dictionary, extract & combine contents
-	method(params)
+	# method(params)
 
-
+for tuple in product(*[[(kw,arg) for arg in args] for kw,args in params.items()]):
+		d={k:a for k,a in tuple}
+		print(d)
+	
 if method=='random':
 		result=pandas2ri.ri2py(impts.na_random(ro.FloatVector(data.values)) # get results of imputation from R
 	if method=='mean':
@@ -184,4 +220,29 @@ if method=='random':
 	return data
 
 
+a = ('2',)
+b = 'z'
+(b,)+a
+
+
+impts=importr('imputeTS') # package for time series imputation
+params={'random':{'method':impts.na_random},
+		'mean':{'method':impts.na_mean},
+		'ma':{'method':impts.na_ma},
+		'locf':{'method':impts.na_locf},
+		'interpol':{'method':impts.na_interpolation},
+		'seadec':{'method':impts.na_seadec},
+		'seasplit':{'method':impts.na_seasplit},
+		'kalman':{'method':impts.na_kalman}
+	}	
+
+	if isinstance(obj,dict):
+		result+=[[(key,)+a for a in o2t(args)] for key,args in obj.items()]
+	for el in obj:
+		if not isinstance(el, dict): result+=[(el,)]
+		else: result+=[[(key,)+a for a in o2t(args)] for key,args in obj.items()]
+	return result
+	
+	if not isinstance(obj,dict): return [(obj,)]
+	else: return [[[(kw,)+a for a in o2t(arg)] for arg in args] for kw,args in obj.items()]
 
