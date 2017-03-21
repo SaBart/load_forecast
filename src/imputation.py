@@ -11,13 +11,13 @@ from rpy2.robjects.packages import importr
 from copy import deepcopy
 from functools import partial
 from itertools import product
-
+from tqdm import tqdm
 
 # impute missing values using R
-def imp(data,method,**kwargs):
+def imp(data,alg,**kwargs):
 	pandas2ri.activate() # activate connection
-	impts=importr('imputeTS') # package for time series imputation
-	result=pandas2ri.ri2py(method(ro.FloatVector(data.values),kwargs)) # get results of imputation from R
+	#impts=importr('imputeTS') # package for time series imputation
+	result=pandas2ri.ri2py(alg(ro.FloatVector(data.values),**kwargs)) # get results of imputation from R
 	data=pd.Series(index=data.index,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
 	return data
 
@@ -67,182 +67,32 @@ def out_dist(data):
 	return out_dist
 
 # returns data imputed with the best method
-def opt_imp(data,n_iter=10,methods,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
+def opt_imp(data,methods,n_iter=10,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
 	dist=out_dist(data) # get the distribution of outage lengths
 	data_lno=lno(data) # get the longest no outage (LNO)
-	results=list() # initialize empty list for results
-	for i in range(n_iter):
+	results=[] # initialize empty list for results
+	#total=n_iter*len([kwargs for method in methods for kwargs in o2k(method['opt'])]) # total number of iterations
+	for i in range(n_iter): # repeat multiple times becaouse of random nature of outage additions
 		data_out=add_out(data=data_lno,dist=dist) # add outages
 		result=pd.DataFrame() # empty dataframe for scores
-		for method in methods: # for each method under consideration	
-			data_imp=imp(data=data_out,method=method) # impute data with said methods
-			score=ms.acc(pred=data_imp,true=data_lno,label=method,measures=measures) # compute accuracy measures
-			result=pd.concat([result,score]) # append computed measures
+		for method in methods: # for each method under consideration
+			name=method['name'] # get name
+			alg=method['alg'] # get algorithm
+			opt=method['opt'] # get options
+			for kwargs in o2k(opt):	# for all combinations of kwargs
+				print(kwargs) # progress update
+				data_imp=imp(data=data_out,alg=alg,**kwargs) # impute data with said methods
+				score=ms.acc(pred=data_imp,true=data_lno,label=name+':'+str(kwargs),measures=measures) # compute accuracy measures
+				result=pd.concat([result,score]) # append computed measures
 		results.append(result) # add to results
 	return sum(results)/n_iter
 
-# converts dictionary to tuples
-def d2t(d):
-	result=[] # 
-	for key,args in d.items():
-		if not isinstance(args,dict): result+=[[(key,arg) for arg in args]]
-		else:
-			for k,a in args.items():
-				result+=[[[(key,k)]]+d2t(a)]
-	return result
-	
-# converts tuples to kwargs
-def t2k(methods):	
-	return [[[{kw:arg for kw,arg in c} for c in comb] for comb in product(*t)] for t in d2t(methods)]
-	
-	[c for c in [comb for comb in [product(*t) for t in d2t(methods)]]]
-	
-	[c for c in [comb for comb in product(*t)]]
-	
-	for t in d2t(methods):
-		comb=product(*t)
-		for c in comb:print(c)
-	
-	
-# converts dictionary of lists to list of dictionaries (list of all combinations of kwargs)
-def dl2ld(dictionary):
-	return [{kw:arg for kw,arg in comb} for comb in product(*[[(kw,arg) for arg in args] for kw,args in dictionary.items()])] # all combinations of kwargs
-
-	
+def o2k(options):
+	return [{kw:arg for kw,arg in comb}for comb in product(*[[(kw,arg) for arg in args] for kw,args in options.items()])]
 
 
-random={}
-mean={'option':['mean','median','mode']} # params for mean
-ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,11)} # params for moving average
-locf={'option':['locf','nocb'],'na_remaining':['rev']} # params for last observation carry forward
-interpol={'option':['linear','spline','stine']} # params for interpolation
-kalman={'model':['auto.arima','structTS']}
-
-methods={impts.na_random:random,
-		impts.na_mean:mean,
-		impts.na_ma:ma,
-		impts.na_locf:locf,
-		impts.na_interpolation:interpol,
-		impts.na_kalman:kalman,
-		impts.na_seadec:{'algorithm':{'random':random,'mean':mean,'ma':ma,'locf':locf,'interpolation':interpol,'kalman':kalman}},
-		impts.na_seasplit:{'algorithm':{'random':random,'mean':mean,'ma':ma,'locf':locf,'interpolation':interpol,'kalman':kalman}},
-	}
-
-for method,params in methods.items():
-	for kwargs in [{kw:arg for kw,arg in comb} for comb in product(*[[(kw,arg) for arg in args] for kw,args in params.items()])]: # for all combinations of kwargs
-		print(kwargs)
-		#data_imp=imp(data=data_out,method=method,**kwargs)
-	
-
-
-
-
-for kwargs in [{kw:arg for kw,arg in comb}for comb in product(*[[(kw,arg) for arg in args] for kw,args in params.items()])]: print(kwargs)
-	
-	
-[[[(kw,k) for k,a in dict.items()] for dict in args] for kw,args in params.items()]
-	
-	# TODO: make [**kwargs] for all combination in params
-	kwargs=[{kw:arg for kw,arg in params.items()}]
-	{ for in product(params.values())}
-	print(kwargs)
-	# if element of params is dictionary, extract & combine contents
-	# method(params)
-
-for tuple in product(*[[(kw,arg) for arg in args] for kw,args in params.items()]):
-		d={k:a for k,a in tuple}
-		print(d)
-	
-if method=='random':
-		result=pandas2ri.ri2py(impts.na_random(ro.FloatVector(data.values)) # get results of imputation from R
-	if method=='mean':
-		result=pandas2ri.ri2py(impts.na_mean(ro.FloatVector(data.values),option='mean')) # get results of imputation from R
-	if method=='median':
-		result=pandas2ri.ri2py(impts.na_mean(ro.FloatVector(data.values),option='median')) # get results of imputation from R
-	if method=='mode':
-		result=pandas2ri.ri2py(impts.na_mean(ro.FloatVector(data.values),option='mode')) # get results of imputation from R
-	if method=='ma_simple':
-		result=pandas2ri.ri2py(impts.na_ma(ro.FloatVector(data.values),weighting='simple')) # get results of imputation from R
-	if method=='ma_lin':
-		result=pandas2ri.ri2py(impts.na_ma(ro.FloatVector(data.values),weighting='linear')) # get results of imputation from R
-	if method=='ma_exp':
-		result=pandas2ri.ri2py(impts.na_ma(ro.FloatVector(data.values),weighting='exponential')) # get results of imputation from R
-	if method=='locf':
-		result=pandas2ri.ri2py(impts.na_locf(ro.FloatVector(data.values),option='locf',na_remaining='rev')) # get results of imputation from R
-	if method=='nocb':
-		result=pandas2ri.ri2py(impts.na_locf(ro.FloatVector(data.values),option='nocb',na_remaining='rev')) # get results of imputation from R
-	if method=='interpol_lin':
-		result=pandas2ri.ri2py(impts.na_interpolation(ro.FloatVector(data.values),option='linear') # get results of imputation from R
-	if method=='interpol_spline':
-		result=pandas2ri.ri2py(impts.na_interpolation(ro.FloatVector(data.values),option='spline') # get results of imputation from R
-	if method=='interpol_stine':
-		result=pandas2ri.ri2py(impts.na_interpolation(ro.FloatVector(data.values),option='stine') # get results of imputation from R
-	if method=='seadec_interpol':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='interpolation')) # get results of imputation from R
-	if method=='seadec_locf':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='locf')) # get results of imputation from R
-	if method=='seadec_mean':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='mean',option='mean')) # get results of imputation from R
-	if method=='seadec_median':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='mean',option='median')) # get results of imputation from R
-	if method=='seadec_mode':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='mean',option='mode')) # get results of imputation from R
-	if method=='seadec_random':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='random')) # get results of imputation from R
-	if method=='seadec_kalman':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='kalman')) # get results of imputation from R
-	if method=='seadec_ma':
-		result=pandas2ri.ri2py(impts.na_seadec(ro.FloatVector(data.values),algorithm='ma')) # get results of imputation from R
-	if method=='kalman_arima':
-		result=pandas2ri.ri2py(impts.na_kalman(ro.FloatVector(data.values),model='auto.arima')) # get results of imputation from R
-	if method=='kalman_structTS':
-		result=pandas2ri.ri2py(impts.na_kalman(ro.FloatVector(data.values),model='structTS')) # get results of imputation from R
-	if method=='seasplit_interpol':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='interpolation')) # get results of imputation from R
-	if method=='seasplit_locf':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='locf')) # get results of imputation from R
-	if method=='seasplit_mean':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='mean',option='mean')) # get results of imputation from R
-	if method=='seasplit_median':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='mean',option='median')) # get results of imputation from R
-	if method=='seasplit_mode':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='mean',option='mode')) # get results of imputation from R
-	if method=='seasplit_random':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='random')) # get results of imputation from R
-	if method=='seasplit_kalman':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='kalman')) # get results of imputation from R
-	if method=='seasplit_ma':
-		result=pandas2ri.ri2py(impts.na_seasplit(ro.FloatVector(data.values),algorithm='ma')) # get results of imputation from R
-	
-	
-	
-	data=pd.Series(index=data.index,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
-	return data
-
-
-a = ('2',)
-b = 'z'
-(b,)+a
-
-
-impts=importr('imputeTS') # package for time series imputation
-params={'random':{'method':impts.na_random},
-		'mean':{'method':impts.na_mean},
-		'ma':{'method':impts.na_ma},
-		'locf':{'method':impts.na_locf},
-		'interpol':{'method':impts.na_interpolation},
-		'seadec':{'method':impts.na_seadec},
-		'seasplit':{'method':impts.na_seasplit},
-		'kalman':{'method':impts.na_kalman}
-	}	
-
-	if isinstance(obj,dict):
-		result+=[[(key,)+a for a in o2t(args)] for key,args in obj.items()]
-	for el in obj:
-		if not isinstance(el, dict): result+=[(el,)]
-		else: result+=[[(key,)+a for a in o2t(args)] for key,args in obj.items()]
-	return result
-	
-	if not isinstance(obj,dict): return [(obj,)]
-	else: return [[[(kw,)+a for a in o2t(arg)] for arg in args] for kw,args in obj.items()]
-
+import time
+with tqdm(10) as pb: # set up progress bar
+		for i in range(10):
+			time.sleep(10)
+			pb.update(1)

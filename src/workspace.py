@@ -16,6 +16,7 @@ from rpy2.robjects.packages import importr
 from sklearn.metrics import r2_score
 from tqdm import tqdm
 from importlib import reload
+from functools import partial
 
 # CONSTANTS
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
@@ -34,15 +35,36 @@ dv.nan_bar(data) # bar chart of nans
 dv.nan_heat(data) # heatmap of nans
 
 # fill missiong values
-shift=ms.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for anive predictor for MASE
-measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider	
-data=imp.opt_imp(data, n_iter=10,measures=measures) # choose best imputation method & impute
+ms.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for naive predictor for MASE
+shift=60*24*7# the shift that performed best
+measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
 
+random={} # params for random
+mean={'option':['mean','median','mode']} # params for mean
+ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,11)} # params for moving average
+locf={'option':['locf','nocb'],'na_remaining':['rev']} # params for last observation carry forward
+interpol={'option':['linear','spline','stine']} # params for interpolation
+kalman={'model':['auto.arima','StructTS']}
+dec_split=[{**{'algorithm':['random']},**random},
+		{**{'algorithm':['mean']},**mean},
+		{**{'algorithm':['ma']},**ma},
+		{**{'algorithm':['locf']},**locf},
+		{**{'algorithm':['interpolation']},**interpol},
+		{**{'algorithm':['kalman']},**kalman}]
 
-data_lno=dp.lno(data) # get the longest no outage (LNO)
-data_lno=dp.cut(data_lno) # # remove incomplete first and last days
-out_dist=dp.out_dist(data) # get the distribution of outage lengths
-data_out=dp.add_out(data=data_lno,dist=out_dist) # add outages
+impts=importr('imputeTS') # package for time series imputation
+
+# simple methods to use for imputation
+methods=[{'name':'random','alg':impts.na_random,'opt':random},
+		{'name':'mean','alg':impts.na_mean,'opt':mean},
+		{'name':'ma','alg':impts.na_ma,'opt':ma},
+		{'name':'locf','alg':impts.na_locf,'opt':locf},
+		{'name':'interpol','alg':impts.na_interpolation,'opt':interpol},
+		{'name':'kalman','alg':impts.na_kalman,'opt':kalman}]
+# add more complex methods
+methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split]+[{'name':'seasplit','alg':impts.na_seasplit,'opt':opt} for opt in dec_split]
+		
+imp_res=imp.opt_imp(data,methods=methods, n_iter=10,measures=measures) # test for best imputation method
 
 
 
