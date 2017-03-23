@@ -19,6 +19,7 @@ def imp(data,alg,**kwargs):
 	#impts=importr('imputeTS') # package for time series imputation
 	result=pandas2ri.ri2py(alg(ro.FloatVector(data.values),**kwargs)) # get results of imputation from R
 	data=pd.Series(index=data.index,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
+	pandas2ri.deactivate() # deactivate connection
 	return data
 
 # returns the longest no outage (LNO)== longest continuous subset with no nan values
@@ -82,17 +83,12 @@ def opt_imp(data,methods,n_iter=10,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE'
 			for kwargs in o2k(opt):	# for all combinations of kwargs
 				print(kwargs) # progress update
 				data_imp=imp(data=data_out,alg=alg,**kwargs) # impute data with said methods
-				score=ms.acc(pred=data_imp,true=data_lno,label=name+':'+str(kwargs),measures=measures) # compute accuracy measures
+				label=','.join([name]+[str(key)+':'+str(kwargs[key]) for key in sorted(kwargs)]) # build entry label from sorted keys
+				score=ms.acc(pred=data_imp,true=data_lno,label=label,measures=measures) # compute accuracy measures
 				result=pd.concat([result,score]) # append computed measures
+		result.index.name='method' # name index column
 		results.append(result) # add to results
 	return sum(results)/n_iter
 
 def o2k(options):
 	return [{kw:arg for kw,arg in comb}for comb in product(*[[(kw,arg) for arg in args] for kw,args in options.items()])]
-
-
-import time
-with tqdm(10) as pb: # set up progress bar
-		for i in range(10):
-			time.sleep(10)
-			pb.update(1)

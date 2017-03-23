@@ -19,7 +19,7 @@ def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumpti
 	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
 	data.set_index(keys=['hour','minute'], append=True, inplace=True) # append hour and minute as new multiindex levels
 	data=data['load'] # convert the only important column to series
-	data=(data*1000)/60 # convert kW to Wh
+	#data=(data*1000)/60 # convert kW to Wh
 	#data.drop('time',axis=1,inplace=True) # drop time column
 	#data=pd.pivot_table(data,index=['hour','minute'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
 	#data=order(data) # order data if necessary
@@ -27,8 +27,11 @@ def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumpti
 	return data
 
 # loads file
-def load(path,index='date'):
-	data=pd.read_csv(path,header=0,sep=",", parse_dates=[index],index_col=index)
+def load(path,idx='date',cols=[],dates=False):
+	#if date_idx:data=pd.read_csv(path,header=0,sep=",", parse_dates=[idx],index_col=idx) # timestamp index
+	#else: data=pd.read_csv(path,header=0,sep=",",index_col=idx) # non timestamp index
+	data=pd.read_csv(path,header=0,sep=",",index_col=idx,parse_dates=dates) # non timestamp index
+	if cols and len(data.columns)<=1:data=data[cols] # convert one column DataFrames into Series
 	return data
 
 # saves data to csv
