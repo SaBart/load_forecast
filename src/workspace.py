@@ -23,18 +23,18 @@ data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory containing results of experiments
 wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # work in progress directory
 
-# load data
+# LOAD DATA
 #data=dp.load_lp(data_dir+'household_power_consumption.csv') # load data
-#dp.save(data,path=data_dir+'data.csv') # save processed data
-data=dp.load(path=data_dir+'data.csv', idx=['date','hour','minute'],cols='load',dates=['date'])
+#dp.save(data,path=data_dir+'data.csv',index_name='datetime') # save processed data
+data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True)
 # data=dp.cut(data) # remove incomplete first and last days
 
-# visualize data
+# VISUALIZE DATA
 #dv.nan_hist(data) # histogram of nans
 #dv.nan_bar(data) # bar chart of nans
 #dv.nan_heat(data) # heatmap of nans
 
-# fill missiong values
+# FILLING MISSING VALUES
 #ms.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for naive predictor for MASE
 shift=60*24*7# the shift that performed best
 measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
@@ -64,12 +64,19 @@ methods=[{'name':'random','alg':impts.na_random,'opt':random},
 # add more complex methods
 methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split]+[{'name':'seasplit','alg':impts.na_seasplit,'opt':opt} for opt in dec_split]
 		
-np.random.seed(4) # fix seed for reprodicibility
-imp_res=imp.opt_imp(data,methods=methods, n_iter=10,measures=measures) # test for best imputation method
-#dp.save(imp_res,path=data_dir+'imp910.csv') # save results
-#part_res=[dp.load(path=data_dir+path,idx='method') for path in ['imp12.csv','imp34.csv','imp56.csv','imp78.csv','imp910.csv']] # load all partial imputation result	
-#imp_res=sum(part_res)/len(part_res) # average partial imputation results
+np.random.seed(0) # fix seed for reprodicibility
+imp_res=imp.opt_imp(data,methods=methods, n_iter=2,measures=measures) # test for best imputation method
+dp.save(imp_res,path=data_dir+'imp12.csv') # save results
+part_res=[dp.load(path=data_dir+path,idx='method') for path in ['imp12.csv','imp34.csv','imp56.csv','imp78.csv','imp910.csv']] # load all partial imputation result	
+imp_res=sum(part_res)/len(part_res) # average partial imputation results
 dp.save(data=imp_res, path=data_dir+'imputation.csv') # save results
+imp_res=dp.load(path=data_dir+'imputation.csv',idx='method')
+
+# AGGREGATE AND CONVERT
+data=dp.cut(data) # remove incomplete first and last days
+#data=(data*1000)/60 # convert kW to Wh for each minute
+data2=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
+
 
 data=dp.m2h(data) # minutes to hours
 

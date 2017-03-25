@@ -16,7 +16,6 @@ from tqdm import tqdm
 # impute missing values using R
 def imp(data,alg,**kwargs):
 	pandas2ri.activate() # activate connection
-	#impts=importr('imputeTS') # package for time series imputation
 	result=pandas2ri.ri2py(alg(ro.FloatVector(data.values),**kwargs)) # get results of imputation from R
 	data=pd.Series(index=data.index,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
 	pandas2ri.deactivate() # deactivate connection
@@ -72,7 +71,6 @@ def opt_imp(data,methods,n_iter=10,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE'
 	dist=out_dist(data) # get the distribution of outage lengths
 	data_lno=lno(data) # get the longest no outage (LNO)
 	results=[] # initialize empty list for results
-	#total=n_iter*len([kwargs for method in methods for kwargs in o2k(method['opt'])]) # total number of iterations
 	for i in range(n_iter): # repeat multiple times becaouse of random nature of outage additions
 		data_out=add_out(data=data_lno,dist=dist) # add outages
 		result=pd.DataFrame() # empty dataframe for scores
@@ -81,7 +79,7 @@ def opt_imp(data,methods,n_iter=10,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE'
 			alg=method['alg'] # get algorithm
 			opt=method['opt'] # get options
 			for kwargs in o2k(opt):	# for all combinations of kwargs
-				print(kwargs) # progress update
+				print(str(i)+':',kwargs) # progress update
 				data_imp=imp(data=data_out,alg=alg,**kwargs) # impute data with said methods
 				label=','.join([name]+[str(key)+':'+str(kwargs[key]) for key in sorted(kwargs)]) # build entry label from sorted keys
 				score=ms.acc(pred=data_imp,true=data_lno,label=label,measures=measures) # compute accuracy measures

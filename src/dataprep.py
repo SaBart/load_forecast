@@ -13,16 +13,11 @@ from copy import deepcopy
 
 # loads load profiles
 def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
-	data=pd.read_csv(path,header=0,sep=";",usecols=[0,1,2], names=['date','time','load'],dtype={'load': np.float64},na_values=['?'], parse_dates=['date'], date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y'))) # read csv
-	data.set_index(keys='date',inplace=True) # set date as an index
-	data['hour']=pd.DatetimeIndex(data['time']).hour # new column for hours
-	data['minute']=pd.DatetimeIndex(data['time']).minute # new column for minutes
-	data.set_index(keys=['hour','minute'], append=True, inplace=True) # append hour and minute as new multiindex levels
+	data=pd.read_csv(path,header=0,sep=";",usecols=[0,1,2], names=['date','time','load'],dtype={'load': np.float64},na_values=['?'], parse_dates={'datetime':['date','time']},date_parser=(lambda x:pd.to_datetime(x,format='%d/%m/%Y %H:%M:%S'))) # read csv
+	data.set_index(keys='datetime',inplace=True) # set date as an index
 	data=data['load'] # convert the only important column to series
-	#data=(data*1000)/60 # convert kW to Wh
-	#data.drop('time',axis=1,inplace=True) # drop time column
-	#data=pd.pivot_table(data,index=['hour','minute'], columns='minute', values='load') # pivot so that minutes are columns, date & hour multi-index and load is value
-	#data=order(data) # order data if necessary
+	data=data.reindex(pd.date_range(start=data.index.min(), end=data.index.max(),freq='1min'),fill_value=np.NaN) # add nans in case of missing entries
+	data.index=data.index-pd.Timedelta(minutes=1) # subtract one minute to preserve consistency of dates
 	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
 	return data
 
@@ -35,8 +30,8 @@ def load(path,idx='date',cols=[],dates=False):
 	return data
 
 # saves data to csv
-def save(data,path):
-	data.to_csv(path,header=True)
+def save(data,path,index_name=None):
+	data.to_csv(path,header=True,index_label=index_name)
 	return
 
 # saves dictionary containing {key:dataframe}
@@ -112,12 +107,9 @@ def s2d(data):
 	
 # remove incomplete first and last days
 def cut(data):
-	f,_,_=data.index.min() # first day
-	l,_,_=data.index.max() # last day
-	if len(data.loc[f])<24*60: # if first day is incomplete
-		data=data.drop(f,level=0) # drop the whole day
-	if len(data.loc[l])<24*60: # if last day is incomplete
-		data=data.drop(l,level=0) # drop the whole day
+	counts=data.fillna(value=0).resample('1D').count() # first replace nans to include in count then count
+	days=counts[counts>=1440].index # complete days
+	data=data[days.min().strftime('%Y-%m-%d'):days.max().strftime('%Y-%m-%d')] # preserve only complete days
 	return data
 
 # shifts data for time series forcasting
