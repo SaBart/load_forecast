@@ -14,9 +14,10 @@ from itertools import product
 from tqdm import tqdm
 
 # impute missing values using R
-def imp(data,alg,**kwargs):
+def imp(data,alg,freq=1440,**kwargs):
 	pandas2ri.activate() # activate connection
-	result=pandas2ri.ri2py(alg(ro.FloatVector(data.values),**kwargs)) # get results of imputation from R
+	ts=ro.r.ts # R time series
+	result=pandas2ri.ri2py(alg(ts(ro.FloatVector(data.values),frequency=freq),**kwargs)) # get results of imputation from R
 	data=pd.Series(index=data.index,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
 	pandas2ri.deactivate() # deactivate connection
 	return data
@@ -67,12 +68,15 @@ def out_dist(data):
 	return out_dist
 
 # returns data imputed with the best method
-def opt_imp(data,methods,n_iter=10,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
+def opt_imp(data,methods,n_iter=10,freq=1440,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
 	dist=out_dist(data) # get the distribution of outage lengths
 	data_lno=lno(data) # get the longest no outage (LNO)
+	ts=ro.r.ts # R time series object
+	pandas2ri.activate() # activate connection
 	results=[] # initialize empty list for results
 	for i in range(n_iter): # repeat multiple times becaouse of random nature of outage additions
 		data_out=add_out(data=data_lno,dist=dist) # add outages
+		data_out_ts=ts(ro.FloatVector(data_out.values),frequency=freq) # construct time series object & estimate frequency
 		result=pd.DataFrame() # empty dataframe for scores
 		for method in methods: # for each method under consideration
 			name=method['name'] # get name
@@ -80,12 +84,14 @@ def opt_imp(data,methods,n_iter=10,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE'
 			opt=method['opt'] # get options
 			for kwargs in o2k(opt):	# for all combinations of kwargs
 				print(str(i)+':',kwargs) # progress update
-				data_imp=imp(data=data_out,alg=alg,**kwargs) # impute data with said methods
+				data_imp=pd.Series(index=data_out.index,data=np.reshape(pandas2ri.ri2py(alg(data_out_ts,**kwargs)),newshape=data_out.shape, order='C')) # get results of imputation from R & construct DataFrame using original index and columns
+				#data_imp=imp(data=data_out,alg=alg,**kwargs) # impute data with said methods
 				label=','.join([name]+[str(key)+':'+str(kwargs[key]) for key in sorted(kwargs)]) # build entry label from sorted keys
 				score=ms.acc(pred=data_imp,true=data_lno,label=label,measures=measures) # compute accuracy measures
 				result=pd.concat([result,score]) # append computed measures
 		result.index.name='method' # name index column
 		results.append(result) # add to results
+	pandas2ri.deactivate() # deactivate connection
 	return sum(results)/n_iter
 
 def o2k(options):

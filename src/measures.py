@@ -60,3 +60,9 @@ def acc(pred,true,label='test',measures={'MAE':mae,'RMSE':rmse,'SRMSE':srmse,'SM
 	score={name:ms(pred=pred,true=true) for name,ms in measures.items()}
 	results=pd.DataFrame(data=score,index=[label]) # convert dictionary into a dataframe
 	return results
+
+# computes mean rank according to accuracy measures
+def rank(data):
+	data['rank']=data.rank(method='dense',ascending=True).mean(axis='columns') # add column with mean rank
+	data.sort_values(by='rank',inplace=True) # sot by rank
+	return data

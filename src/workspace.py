@@ -37,11 +37,11 @@ data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True)
 # FILLING MISSING VALUES
 #ms.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for naive predictor for MASE
 shift=60*24*7# the shift that performed best
-measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
+measures={'MAE':ms.mae,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
 
 random={} # params for random
 mean={'option':['mean','median','mode']} # params for mean
-ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,11)} # params for moving average
+ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,15)} # params for moving average
 locf={'option':['locf','nocb'],'na.remaining':['rev']} # params for last observation carry forward
 interpol={'option':['linear','spline','stine']} # params for interpolation
 kalman={'model':['auto.arima','StructTS']}
@@ -63,14 +63,12 @@ methods=[{'name':'random','alg':impts.na_random,'opt':random},
 		{'name':'kalman','alg':impts.na_kalman,'opt':kalman}]
 # add more complex methods
 methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split]+[{'name':'seasplit','alg':impts.na_seasplit,'opt':opt} for opt in dec_split]
-		
+
 np.random.seed(0) # fix seed for reprodicibility
-imp_res=imp.opt_imp(data,methods=methods, n_iter=2,measures=measures) # test for best imputation method
-dp.save(imp_res,path=data_dir+'imp12.csv') # save results
-part_res=[dp.load(path=data_dir+path,idx='method') for path in ['imp12.csv','imp34.csv','imp56.csv','imp78.csv','imp910.csv']] # load all partial imputation result	
-imp_res=sum(part_res)/len(part_res) # average partial imputation results
-dp.save(data=imp_res, path=data_dir+'imputation.csv') # save results
-imp_res=dp.load(path=data_dir+'imputation.csv',idx='method')
+imp_res=imp.opt_imp(data,methods=methods, n_iter=10,measures=measures)
+dp.save(imp_res,path=data_dir+'imp.csv') # save results	
+imp_res=dp.load(path=data_dir+'imp_ts.csv',idx='method')
+imp_res=ms.rank(imp_res) # rank data
 
 # AGGREGATE AND CONVERT
 data=dp.cut(data) # remove incomplete first and last days
@@ -116,6 +114,25 @@ test=dp.load(wip_dir+'test.csv',index='date')
 
 
 
+random={} # params for random
+mean={'option':['mean','median','mode']} # params for mean
+ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,15)} # params for moving average
+locf={'option':['locf','nocb'],'na.remaining':['rev']} # params for last observation carry forward
+interpol={'option':['linear','spline','stine']} # params for interpolation
+dec_split=[{**{'algorithm':['random']},**random},
+		{**{'algorithm':['mean']},**mean},
+		{**{'algorithm':['ma']},**ma},
+		{**{'algorithm':['locf']},**locf},
+		{**{'algorithm':['interpolation']},**interpol}]
 
+impts=importr('imputeTS') # package for time series imputation
 
+# simple methods to use for imputation
+methods=[{'name':'random','alg':impts.na_random,'opt':random},
+		{'name':'mean','alg':impts.na_mean,'opt':mean},
+		{'name':'ma','alg':impts.na_ma,'opt':ma},
+		{'name':'locf','alg':impts.na_locf,'opt':locf},
+		{'name':'interpol','alg':impts.na_interpolation,'opt':interpol}]
+# add more complex methods
+methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split]+[{'name':'seasplit','alg':impts.na_seasplit,'opt':opt} for opt in dec_split]
 
