@@ -21,7 +21,7 @@ def rmse(pred,true):
 def srmse(pred,true):
 	pred=dp.d2s(pred) # DataFrame to Series
 	true=dp.d2s(true) # DataFrame to Series
-	return np.sqrt(((pred-true) ** 2).mean())/(true.mean())
+	return np.sqrt(((pred-true) ** 2).mean())/true.mean()
 
 # symmetric mean absolute percentage error (SMAPE)
 def smape(pred,true):
@@ -35,11 +35,11 @@ def mase(pred,true,shift=7*24):
 	true=dp.d2s(true) # DataFrame to Series
 	return (pred-true).abs().mean()/(true.shift(shift)-true).dropna().abs().mean()
 
-# maximum absolute error (MAE)
-def mae(pred,true):
+# scaled maximum absolute error (MAE)
+def smae(pred,true):
 	pred=dp.d2s(pred) # DataFrame to Series
 	true=dp.d2s(true) # DataFrame to Series
-	return (pred-true).abs().max()
+	return ((pred-true).abs().max())/true.mean()
 	
 	
 # finds the best shift to use for naive method and MASE
@@ -63,6 +63,6 @@ def acc(pred,true,label='test',measures={'MAE':mae,'RMSE':rmse,'SRMSE':srmse,'SM
 
 # computes mean rank according to accuracy measures
 def rank(data):
-	data['rank']=data.rank(method='dense',ascending=True).mean(axis='columns') # add column with mean rank
+	data['rank']=data.rank(method='dense',ascending=True).min(axis='columns') # add column with mean rank
 	data.sort_values(by='rank',inplace=True) # sot by rank
 	return data

@@ -90,9 +90,14 @@ def load_concat_w(paths,index='timestamp',cols=['tempm','hum','pressurem','wspdm
 	data=pd.concat([load_w(path,index,cols) for path in paths])
 	return data
 
-# combines minute time intervals into hours
-def m2h(data):
-	data=data.mean(axis=1,skipna=False).unstack()  # average load across hours, preserving nans
+# combines minute time intervals into half-hour time intervals
+def resample(data):
+	data=cut(data) # remove incomplete first and last days
+	data=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
+	data=data.to_frame() # convert to dataframe
+	data['date']=pd.to_datetime(data.index.date) # create date column from index
+	data['time']=data.index.strftime('%H%M') # create time column from index
+	data=pd.pivot_table(data=data,index='date',columns='time',values='load') # pivot dataframe so that dates are index and times are columns
 	return data
 
 # flattens data, converts columns into a multiindex level
@@ -134,8 +139,8 @@ def X_Y(data,target_label='targets'):
 	return X, Y
 
 # split data into train & test sets
-def train_test(data, base=7,test_size=0.25): # in time series analysis order of samples usually matters, so no shuffling of samples
-	split_idx=round_rem(total=len(data),base=base,test_size=test_size) # calculate the index that splits dataset into train, test
+def train_test(data, base=7,test_size=0.255): # in time series analysis order of samples usually matters, so no shuffling of samples
+	split_idx=round_d((1-test_size)*len(data)) # calculate the index that splits dataset into train, test
 	train,test =data[:split_idx],data[split_idx:] # split data into train & test sets
 	return train,test
 

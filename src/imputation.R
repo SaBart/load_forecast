@@ -1,7 +1,17 @@
 library('imputeTS')
 source('dataprep.R')
 
+data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data
 wip_dir<-'C:/Users/SABA/Google Drive/mtsg/data/wip/' # directory containing data
+
+
+data<-load(paste(data_dir,'data.csv', sep='')) # load data set
+data_ts<-ts(data,frequency=1440) # build time series object
+
+data<-na.kalman(x=data_ts,model='auto.arima',trace=TRUE)
+
+save(data=data,path=paste(data_dir,'data_arima.csv', sep=''))
+
 
 
 for (i in 0:5)

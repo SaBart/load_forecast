@@ -60,7 +60,7 @@ arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg
       xreg<-rbind(xreg_train,xreg_test[seq_len(i),]) # add covariates corresponding to new observations
       xreg_pred<-xreg_test[i+seq_len(hor),] # add covariates for predictions
     }
-    if (i%%batch==0){ # if its time to retrain
+    if (i%%(batch*hor)==0){ # if its time to retrain
       bc_lambda<-if (box_cox) BoxCox.lambda(train,method='') else NULL # estimate lambda for Box-Cox transformation
       model<-auto.arima(train_ts,xreg=xreg,seasonal=FALSE,parallel = TRUE,stepwise=FALSE,lambda=bc_lambda) # find best model on the current train set
       print(arimaorder(model)) # print the type of model
@@ -68,8 +68,9 @@ arima<-function(train,test,hor=1,batch=7,freq=24,f_K=NULL,wxreg_train=NULL,wxreg
     else{ # it is not the time to retrain
       model<-Arima(train_ts,model=model,xreg=xreg,lambda=bc_lambda) # do not train, use current model with new observations
     }
-    test_pred[(i%/%hor)+1,]<-forecast(model,h=hor,xreg=xreg_pred,lambda=bc_lambda)$mean # predict new values
-      setTkProgressBar(pb, i,label=paste( (i%/%hor)+1,'/',total)) # update progress
+    d=(i%/%hor)+1
+    test_pred[d,]<-forecast(model,h=hor,xreg=xreg_pred,lambda=bc_lambda)$mean # predict new values
+      setTkProgressBar(pb, d,label=paste( d,'/',total)) # update progress
   }
   close(pb) # close progress bar
   return(test_pred)

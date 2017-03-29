@@ -18,7 +18,7 @@ def imp(data,alg,freq=1440,**kwargs):
 	pandas2ri.activate() # activate connection
 	ts=ro.r.ts # R time series
 	result=pandas2ri.ri2py(alg(ts(ro.FloatVector(data.values),frequency=freq),**kwargs)) # get results of imputation from R
-	data=pd.Series(index=data.index,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
+	data=pd.Series(index=data.index,columsn=data.columns,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
 	pandas2ri.deactivate() # deactivate connection
 	return data
 
@@ -68,7 +68,7 @@ def out_dist(data):
 	return out_dist
 
 # returns data imputed with the best method
-def opt_imp(data,methods,n_iter=10,freq=1440,measures={'MAE':ms.mae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
+def opt_imp(data,methods,n_iter=10,freq=1440,measures={'SMAE':ms.smae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
 	dist=out_dist(data) # get the distribution of outage lengths
 	data_lno=lno(data) # get the longest no outage (LNO)
 	ts=ro.r.ts # R time series object

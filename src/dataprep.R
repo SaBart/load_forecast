@@ -1,6 +1,6 @@
 
-load<-function(path,index='datetime'){
-  data<-read.csv(path,header=TRUE,row.names=index,sep=',',dec='.') # load data
+load<-function(path,index='date'){
+  data<-read.csv(path,header=TRUE,row.names=index,sep=',',dec='.',check.names=FALSE) # load data
   return(data)
 }
 

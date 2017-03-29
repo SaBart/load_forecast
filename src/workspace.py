@@ -18,6 +18,9 @@ from tqdm import tqdm
 from importlib import reload
 from functools import partial
 
+
+impts=importr('imputeTS') # package for time series imputation
+
 # CONSTANTS
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory containing results of experiments
@@ -37,7 +40,7 @@ data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True)
 # FILLING MISSING VALUES
 #ms.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for naive predictor for MASE
 shift=60*24*7# the shift that performed best
-measures={'MAE':ms.mae,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
+measures={'SMAE':ms.smae,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
 
 random={} # params for random
 mean={'option':['mean','median','mode']} # params for mean
@@ -52,7 +55,7 @@ dec_split=[{**{'algorithm':['random']},**random},
 		{**{'algorithm':['interpolation']},**interpol},
 		{**{'algorithm':['kalman']},**kalman}]
 
-impts=importr('imputeTS') # package for time series imputation
+
 
 # simple methods to use for imputation
 methods=[{'name':'random','alg':impts.na_random,'opt':random},
@@ -66,17 +69,40 @@ methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split
 
 np.random.seed(0) # fix seed for reprodicibility
 imp_res=imp.opt_imp(data,methods=methods, n_iter=10,measures=measures)
-dp.save(imp_res,path=data_dir+'imp.csv') # save results	
-imp_res=dp.load(path=data_dir+'imp_ts.csv',idx='method')
+dp.save(imp_res,path=data_dir+'imp.csv') # save results
+
+
+imp_res=dp.load(path=data_dir+'imp.csv',idx='method')
 imp_res=ms.rank(imp_res) # rank data
 
-# AGGREGATE AND CONVERT
-data=dp.cut(data) # remove incomplete first and last days
+# impute the whole dataset using three best methods of imputation
+data_nocb=imp.imp(data, alg=impts.na_locf, freq=1440, **{'option':'nocb','na.remaining':'rev'})
+data_seadec=imp.imp(data, alg=impts.na_seadec, freq=1440, **{'algorithm':'ma','weighting':'simple','k':2})
+data_arima=imp.imp(data, alg=impts.na_kalman, freq=1440, **{'model':'auto.arima'}) # arima(5,1,0) is the best model
+
+# save imputed data
+dp.save(data_nocb, path=data_dir+'data_nocb.csv', index_name='datetime')
+dp.save(data_seadec, path=data_dir+'data_seadec.csv', index_name='datetime')
+dp.save(data_arima, path=data_dir+'data_arima.csv', index_name='datetime')
+
+
+# AGGREGATE DATA
+
+for name in ['nocb','seadec','arima']:
+	data=dp.load(path=data_dir+'data_'+name+'.csv',idx='datetime',cols='load',dates=True) # load imputed data
+	data=dp.resample(data) # aggregate minutes to half-hours
+	train,test=dp.train_test(data=data, test_size=0.255, base=7) # split into train & test sets
+	dp.save(data=train,path=data_dir+name+'/train.csv') # save train set
+	dp.save(data=test,path=data_dir+name+'/test.csv') # save test set
+	dp.save_dict(dic=dp.split(train,nsplits=7),path=data_dir+name+'/train_') # split train set according to weekdays and save each into a separate file
+	dp.save_dict(dic=dp.split(test,nsplits=7),path=data_dir+name+'/test_') # split test set according to weekdays and save each into a separate file
+	
+	
+	dp.save(data=data, path=data_dir+name+'/data_'+name+'.csv')
+
 #data=(data*1000)/60 # convert kW to Wh for each minute
-data2=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
 
-
-data=dp.m2h(data) # minutes to hours
+#data=dp.m2h(data) # minutes to hours
 
 # prepate train & test sets
 train,test=dp.train_test(data=data, test_size=0.25, base=7) # split into train & test sets
