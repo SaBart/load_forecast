@@ -30,8 +30,8 @@ def load(path,idx='date',cols=[],dates=False):
 	return data
 
 # saves data to csv
-def save(data,path,index_name=None):
-	data.to_csv(path,header=True,index_label=index_name)
+def save(data,path,idx=None):
+	data.to_csv(path,header=True,index_label=idx)
 	return
 
 # saves dictionary containing {key:dataframe}
@@ -152,8 +152,8 @@ def round_rem(total,base=7,test_size=0.25):
 def split(data,nsplits=7): 
 	return {i:data.iloc[i::nsplits] for i in range(nsplits)} # return as a dictionary {offset:data}
 	
-def load_merge(paths,index='date'):
-	data=pd.concat([pd.read_csv(path,header=0,sep=",", parse_dates=[index],index_col=index) for path in paths], axis=0) # load all dataframes into one
+def load_merge(paths,idx='date',cols=[],dates=True):
+	data=pd.concat([load(path, idx=idx,cols=cols, dates=dates) for path in paths], axis=0) # load all dataframes into one
 	if not data.index.is_monotonic_increasing:
 		data.sort_index(inplace=True) # order index
 	return data	

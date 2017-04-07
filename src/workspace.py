@@ -28,7 +28,7 @@ wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # work in progress directory
 
 # LOAD DATA
 #data=dp.load_lp(data_dir+'household_power_consumption.csv') # load data
-#dp.save(data,path=data_dir+'data.csv',index_name='datetime') # save processed data
+#dp.save(data,path=data_dir+'data.csv',idx='datetime') # save processed data
 data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True)
 # data=dp.cut(data) # remove incomplete first and last days
 
@@ -69,7 +69,7 @@ methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split
 
 np.random.seed(0) # fix seed for reprodicibility
 imp_res=imp.opt_imp(data,methods=methods, n_iter=10,measures=measures)
-dp.save(imp_res,path=data_dir+'imp.csv') # save results
+dp.save(imp_res,path=data_dir+'imp.csv',idx='datetime') # save results
 
 
 imp_res=dp.load(path=data_dir+'imp.csv',idx='method')
@@ -81,35 +81,32 @@ data_seadec=imp.imp(data, alg=impts.na_seadec, freq=1440, **{'algorithm':'ma','w
 data_arima=imp.imp(data, alg=impts.na_kalman, freq=1440, **{'model':'auto.arima'}) # arima(5,1,0) is the best model
 
 # save imputed data
-dp.save(data_nocb, path=data_dir+'data_nocb.csv', index_name='datetime')
-dp.save(data_seadec, path=data_dir+'data_seadec.csv', index_name='datetime')
-dp.save(data_arima, path=data_dir+'data_arima.csv', index_name='datetime')
+dp.save(data_nocb, path=data_dir+'data_nocb.csv', idx='datetime')
+dp.save(data_seadec, path=data_dir+'data_seadec.csv', idx='datetime')
+dp.save(data_arima, path=data_dir+'data_arima.csv', idx='datetime')
 
 
-# AGGREGATE DATA
+# AGGREGATE DATA & CREATE TRAIN & TEST SETS
 
 for name in ['nocb','seadec','arima']:
 	data=dp.load(path=data_dir+'data_'+name+'.csv',idx='datetime',cols='load',dates=True) # load imputed data
 	data=dp.resample(data) # aggregate minutes to half-hours
 	train,test=dp.train_test(data=data, test_size=0.255, base=7) # split into train & test sets
-	dp.save(data=train,path=data_dir+name+'/train.csv') # save train set
-	dp.save(data=test,path=data_dir+name+'/test.csv') # save test set
-	dp.save_dict(dic=dp.split(train,nsplits=7),path=data_dir+name+'/train_') # split train set according to weekdays and save each into a separate file
-	dp.save_dict(dic=dp.split(test,nsplits=7),path=data_dir+name+'/test_') # split test set according to weekdays and save each into a separate file
+	dp.save(data=train,path=data_dir+name+'/train.csv',idx='date') # save train set
+	dp.save(data=test,path=data_dir+name+'/test.csv',idx='date') # save test set
+	dp.save_dict(dic=dp.split(train,nsplits=7),path=data_dir+name+'/train_',idx='date') # split train set according to weekdays and save each into a separate file
+	dp.save_dict(dic=dp.split(test,nsplits=7),path=data_dir+name+'/test_',idx='date') # split test set according to weekdays and save each into a separate file
 	
 	
 	dp.save(data=data, path=data_dir+name+'/data_'+name+'.csv')
 
-#data=(data*1000)/60 # convert kW to Wh for each minute
+# EXPERIMENTAL RESULTS
+shift=48*7# the shift that performed best
+measures={'SMAE':ms.smae,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
 
-#data=dp.m2h(data) # minutes to hours
-
-# prepate train & test sets
-train,test=dp.train_test(data=data, test_size=0.25, base=7) # split into train & test sets
-dp.save(data=train,path=wip_dir+'train.csv') # save train set
-dp.save(data=test,path=wip_dir+'test.csv') # save test set
-dp.save_dict(dic=dp.split(train,nsplits=7),path=wip_dir+'train_') # split train set according to weekdays and save each into a separate file
-dp.save_dict(dic=dp.split(test,nsplits=7),path=wip_dir+'test_') # split test set according to weekdays and save each into a separate file
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/nocb/ets/results/' # directory containing results of experiments
+true=dp.load(data_dir+'nocb/ets/data/test.csv',idx='date',dates=True)
+results=ms.accs(exp_dir, true, measures=measures)
 
 # downloading weather in parts due to the limit on API requests (only 500 per day) 
 dates=pd.DatetimeIndex(targets.index).strftime('%Y%m%d')[:400] # first part of dates
@@ -138,27 +135,4 @@ paths=[wip_dir + path for path in ['test_0.csv','test_1.csv','test_2.csv','test_
 data=dp.load_merge(paths,index='date')
 test=dp.load(wip_dir+'test.csv',index='date')
 
-
-
-random={} # params for random
-mean={'option':['mean','median','mode']} # params for mean
-ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,15)} # params for moving average
-locf={'option':['locf','nocb'],'na.remaining':['rev']} # params for last observation carry forward
-interpol={'option':['linear','spline','stine']} # params for interpolation
-dec_split=[{**{'algorithm':['random']},**random},
-		{**{'algorithm':['mean']},**mean},
-		{**{'algorithm':['ma']},**ma},
-		{**{'algorithm':['locf']},**locf},
-		{**{'algorithm':['interpolation']},**interpol}]
-
-impts=importr('imputeTS') # package for time series imputation
-
-# simple methods to use for imputation
-methods=[{'name':'random','alg':impts.na_random,'opt':random},
-		{'name':'mean','alg':impts.na_mean,'opt':mean},
-		{'name':'ma','alg':impts.na_ma,'opt':ma},
-		{'name':'locf','alg':impts.na_locf,'opt':locf},
-		{'name':'interpol','alg':impts.na_interpolation,'opt':interpol}]
-# add more complex methods
-methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split]+[{'name':'seasplit','alg':impts.na_seasplit,'opt':opt} for opt in dec_split]
 
