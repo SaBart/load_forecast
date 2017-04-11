@@ -7,15 +7,15 @@ pop_col=function(data,col){ # removes and returns column from dataframe
   return(poped_col)
 }
 
-f_ords<-function(train,freq=24,freqs,max_order){
+f_ords<-function(train,freq=48,freqs,max_order){
   train<-c(t(train)) # flatten train set
-  params<-expand.grid(lapply(freqs,function(x) seq(max_order))) # all combinations of fourier orders
+  params<-expand.grid(lapply(freqs,function(x) seq(from=0,to=max_order,by=5))) # all combinations of fourier orders
   aicc_best<-Inf # best aicc statistic
   param_best<-NULL # best parameters
-  for (i in 1:nrow(params)){ # for each combination of orders
+  for (i in 2:nrow(params)){ # for each combination of orders
     param<-unlist(params[i,]) # combination of orders
     xreg_train<-fourier(msts(train,seasonal.periods=freqs),K=param) # fourier terms for particular multi-seasonal time series
-    fit=auto.arima(ts(train,frequency = freq),xreg=xreg_train,seasonal=FALSE,parallel = TRUE,stepwise=FALSE,approximation=FALSE) # find best arima model
+    fit=auto.arima(ts(train,frequency = freq),xreg=xreg_train,seasonal=FALSE,trace=TRUE) # find best arima model
     if (fit$aicc<aicc_best){ # if there is an improvement in aicc statistic
       param_best<-param # save these orders
       aicc_best<-fit$aicc # save new best aicc value
@@ -109,7 +109,7 @@ arima_v<-function(train,test,batch=7,freq=7,f_K=NULL,wxreg_train=NULL,wxreg_test
 }
 
 data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/data/' # directory containing data
-exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/exp/' # directory for the results of experiments
+exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/results/' # directory for the results of experiments
 
 train<-load(paste(data_dir,'train.csv', sep='')) # load train set
 test<-load(paste(data_dir,'test.csv', sep='')) # load test set
@@ -215,6 +215,29 @@ test_pred_vfw<-arima_h(train,test,batch=28,freq=7,f_K=K,wxreg_train=wxreg_train,
 save(data=test_pred_vfw,path=paste(exp_dir,'arima_vfw.csv',sep='')) # write results
 
 
+
+
+
+
+
+# FOURIER & WEATHER EXTERNAL REGRESSORS & DEC & BOX-COX
+
+train<-load(paste(data_dir,'train.csv', sep='')) # load train set
+test<-load(paste(data_dir,'test.csv', sep='')) # load test set
+wxregs_train<-lapply(list('tempm_train.csv','hum_train.csv','pressurem_train.csv'),function(x) load(paste(data_dir,x,sep=''))) # load weather covariates for train set
+wxregs_test<-lapply(list('tempm_test.csv','hum_test.csv','pressurem_test.csv'),function(x) load(paste(data_dir,x,sep=''))) # load weather covariates for test set
+
+# horizontal predictions
+K<-f_ords(train,freq=365.25*48,freqs=c(48,7*48),max_order=24) # find best fourier coefficients
+K=c(10,6)
+test_pred_hfw<-arima_h(train,test,batch=28,freq=24,f_K=K,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # horizontal prediction
+save(data=test_pred_hfw,path=paste(exp_dir,'arima_hfw.csv',sep='')) # write results
+
+# vertical predictions
+K<-f_ords(train,freq=365.25,freqs=c(7),max_order=3) # find best fourier coefficients
+K=c(10)
+test_pred_vfw<-arima_h(train,test,batch=28,freq=7,f_K=K,wxreg_train=wxreg_train,wxreg_test=wxreg_test) # vertical prediction
+save(data=test_pred_vfw,path=paste(exp_dir,'arima_vfw.csv',sep='')) # write results
 
 
 

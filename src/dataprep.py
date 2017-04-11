@@ -26,7 +26,7 @@ def load(path,idx='date',cols=[],dates=False):
 	#if date_idx:data=pd.read_csv(path,header=0,sep=",", parse_dates=[idx],index_col=idx) # timestamp index
 	#else: data=pd.read_csv(path,header=0,sep=",",index_col=idx) # non timestamp index
 	data=pd.read_csv(path,header=0,sep=",",index_col=idx,parse_dates=dates) # non timestamp index
-	if cols and len(data.columns)<=1:data=data[cols] # convert one column DataFrames into Series
+	if cols:data=data[cols] # extract only wanted columns
 	return data
 
 # saves data to csv
@@ -35,9 +35,9 @@ def save(data,path,idx=None):
 	return
 
 # saves dictionary containing {key:dataframe}
-def save_dict(dic,path):
+def save_dict(dic,path,idx=None):
 	for key,value in dic.items():
-		save(data=value,path=path+str(key)+'.csv') # save data
+		save(data=value,path=path+str(key)+'.csv',idx=idx) # save data
 	return
 
 # downloads one day worth of weather data
@@ -67,15 +67,6 @@ def dl_save_w(dates,path):
 				writer.writerow(o)
 	return			
 
-# loads & formats raw weather data  
-def load_w(path='C:/Users/SABA/Google Drive/mtsg/data/weather_3.csv',index='timestamp',cols=['tempm','hum','pressurem','wspdm']):
-	data=pd.read_csv(path,header=0,sep=",",usecols=[index]+cols, parse_dates=[index],index_col=index) # read csv
-	data=data.resample('H').mean() # average values across hours
-	data['date']=pd.DatetimeIndex(data.index).normalize() # new column for dates
-	data['hour']=pd.DatetimeIndex(data.index).hour # new column for hours
-	data=pd.pivot_table(data,index=['date','hour']) # pivot so that minutes are columns, date & hour multi-index and load is value
-	return data
-
 # splits weather data by columns & formats each part and outputs a dictionary with {keys}=={column names} 
 def split_cols(data):
 	return {col:data[col].unstack() for col in data.columns} # return a dictionary of dataframes each with values from only one column of original dataframe and key equal to column name	 
@@ -85,19 +76,22 @@ def split_cols_save(data,paths):
 		save(data[col].unstack(),path) # save formatted column under the path
 	return
 
-# loads and concats multiple weather files into one dataframe
-def load_concat_w(paths,index='timestamp',cols=['tempm','hum','pressurem','wspdm']):
-	data=pd.concat([load_w(path,index,cols) for path in paths])
+# loads, concats & formats multiple weather files into one dataframe
+def load_concat_w(paths,idx='timestamp',cols=['tempm','hum','pressurem'],dates=False):
+	data=pd.concat([load(path=path,idx=idx,cols=cols,dates=dates) for path in paths]) # load and concat data
+	data=data.where(data>-100,np.nan) # replace nonsensical values with nans
+	data=data.resample(rule='30Min').mean() # insert nans for missing days
 	return data
 
 # combines minute time intervals into half-hour time intervals
-def resample(data):
-	data=cut(data) # remove incomplete first and last days
+def resample(data,freq=1440):
+	data=cut(data,freq=freq) # remove incomplete first and last days
 	data=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
+	values=data.name # get the series name
 	data=data.to_frame() # convert to dataframe
 	data['date']=pd.to_datetime(data.index.date) # create date column from index
 	data['time']=data.index.strftime('%H%M') # create time column from index
-	data=pd.pivot_table(data=data,index='date',columns='time',values='load') # pivot dataframe so that dates are index and times are columns
+	data=pd.pivot_table(data=data,index='date',columns='time',values=values) # pivot dataframe so that dates are index and times are columns
 	return data
 
 # flattens data, converts columns into a multiindex level
@@ -111,9 +105,9 @@ def s2d(data):
 	return data
 	
 # remove incomplete first and last days
-def cut(data):
+def cut(data,freq=1440):
 	counts=data.fillna(value=0).resample('1D').count() # first replace nans to include in count then count
-	days=counts[counts>=1440].index # complete days
+	days=counts[counts>=freq].index # complete days
 	data=data[days.min().strftime('%Y-%m-%d'):days.max().strftime('%Y-%m-%d')] # preserve only complete days
 	return data
 

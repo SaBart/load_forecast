@@ -87,18 +87,46 @@ dp.save(data_arima, path=data_dir+'data_arima.csv', idx='datetime')
 
 
 # AGGREGATE DATA & CREATE TRAIN & TEST SETS
+temp_dir=data_dir+'nocb/arima/data/' # where to save 	
+data=dp.load(path=data_dir+'data_nocb.csv',idx='datetime',cols='load',dates=True) # load imputed data
 
-for name in ['nocb','seadec','arima']:
-	data=dp.load(path=data_dir+'data_'+name+'.csv',idx='datetime',cols='load',dates=True) # load imputed data
-	data=dp.resample(data) # aggregate minutes to half-hours
-	train,test=dp.train_test(data=data, test_size=0.255, base=7) # split into train & test sets
-	dp.save(data=train,path=data_dir+name+'/train.csv',idx='date') # save train set
-	dp.save(data=test,path=data_dir+name+'/test.csv',idx='date') # save test set
-	dp.save_dict(dic=dp.split(train,nsplits=7),path=data_dir+name+'/train_',idx='date') # split train set according to weekdays and save each into a separate file
-	dp.save_dict(dic=dp.split(test,nsplits=7),path=data_dir+name+'/test_',idx='date') # split test set according to weekdays and save each into a separate file
+data=dp.resample(data) # aggregate minutes to half-hours
+train,test=dp.train_test(data=data, test_size=0.255, base=7) # split into train & test sets
+train=train.tail(364)
+dp.save(data=train,path=temp_dir+'/train.csv',idx='date') # save train set
+dp.save(data=test,path=temp_dir+'/test.csv',idx='date') # save test set
+dp.save_dict(dic=dp.split(train,nsplits=7),path=temp_dir+'/train_',idx='date') # split train set according to weekdays and save each into a separate file
+dp.save_dict(dic=dp.split(test,nsplits=7),path=temp_dir+'/test_',idx='date') # split test set according to weekdays and save each into a separate file
 	
-	
-	dp.save(data=data, path=data_dir+name+'/data_'+name+'.csv')
+
+# WEATHER DATA
+
+# downloading weather in parts due to the limit on API requests (only 500 per day) 
+dates=pd.DatetimeIndex(data.index).strftime('%Y%m%d')[:400] # first part of dates
+dp.dl_save_w(dates, data_dir+'weather_1.csv') # save first part
+dates=pd.DatetimeIndex(data.index).strftime('%Y%m%d')[400:800] # second part of dates
+dp.dl_save_w(dates, data_dir+'weather_2.csv') # save second part
+dates=pd.DatetimeIndex(data.index).strftime('%Y%m%d')[800:1200] # third part of dates
+dp.dl_save_w(dates, data_dir+'weather_3.csv') # save third part
+dates=pd.DatetimeIndex(data.index).strftime('%Y%m%d')[1200:] # fourth part of dates
+dp.dl_save_w(dates, data_dir+'weather_4.csv') # save fourth part
+
+# formatting weather data
+paths=['weather_1.csv','weather_2.csv','weather_3.csv','weather_4.csv'] # files to be concatenated
+weather=dp.load_concat_w([data_dir+path for path in paths],idx='timestamp',cols=['tempm','hum','pressurem'],dates=True) # join all parts of weather data
+weather.fillna(method='bfill',inplace=True) # fill missiong values (for column with maximum missin it is still only 0.045% of all)
+
+# splitting, aggregating & saving weather datas
+temp_dir=data_dir+'nocb/arima/data/' # where to save
+for col in weather: # for each column=weather parameter
+	data_w=dp.resample(data=weather[col], freq=48) # reshape to have time of day as columns
+	train_w,test_w=dp.train_test(data=data_w, test_size=0.255, base=7) # split into train & test sets
+	train_w=train_w.tail(364)
+	dp.save(data=train_w,path=temp_dir+col+'_train.csv',idx='date') # save train set
+	dp.save(data=test_w,path=temp_dir+col+'_test.csv',idx='date') # save test set
+	dp.save_dict(dic=dp.split(train_w,nsplits=7),path=temp_dir+col+'_train_',idx='date') # split train set according to weekdays and save each into a separate file
+	dp.save_dict(dic=dp.split(test_w,nsplits=7),path=temp_dir+col+'_test_',idx='date') # split test set according to weekdays and save each into a separate file
+
 
 # EXPERIMENTAL RESULTS
 shift=48*7# the shift that performed best
@@ -108,31 +136,12 @@ exp_dir='C:/Users/SABA/Google Drive/mtsg/data/nocb/ets/results/' # directory con
 true=dp.load(data_dir+'nocb/ets/data/test.csv',idx='date',dates=True)
 results=ms.accs(exp_dir, true, measures=measures)
 
-# downloading weather in parts due to the limit on API requests (only 500 per day) 
-dates=pd.DatetimeIndex(targets.index).strftime('%Y%m%d')[:400] # first part of dates
-dp.dl_save_w(dates, data_dir+'weather_1.csv') # save first part
-dates=pd.DatetimeIndex(targets.index).strftime('%Y%m%d')[400:800] # second part of dates
-dp.dl_save_w(dates, data_dir+'weather_2.csv') # save second part
-dates=pd.DatetimeIndex(targets.index).strftime('%Y%m%d')[800:1200] # third part of dates
-dp.dl_save_w(dates, data_dir+'weather_3.csv') # save third part
-dates=pd.DatetimeIndex(targets.index).strftime('%Y%m%d')[1200:] # fourth part of dates
-dp.dl_save_w(dates, data_dir+'weather_4.csv') # save fourth part
 
-# formatting. splitting and saving weather data
-paths=['weather_1.csv','weather_2.csv','weather_3.csv','weather_4.csv'] # files to be concatenated
-weather=dp.load_concat_w([data_dir+path for path in paths],index='timestamp',cols=['tempm','hum','pressurem','wspdm']) # join all parts of weather data
-weather.fillna(method='bfill',inplace=True) # fill missiong values
-weather_split=dp.split_cols(weather) # dictionary of dataframes each containing only one weather attribute values
-for name,data in weather_split.items():
-	train_w,test_w=dp.train_test(data=data, test_size=0.25, base=7) # split into train & test sets
-	dp.save(data=train_w,path=wip_dir+'train_'+name+'.csv') # save train set
-	dp.save(data=test_w,path=wip_dir+'test_'+name+'.csv') # save test set
-	dp.save_dict(dic=dp.split(train_w,nsplits=7), path=wip_dir+'train_'+name+'_') # split train set according to weekdays and save each into a separate file
-	dp.save_dict(dic=dp.split(test_w,nsplits=7), path=wip_dir+'test_'+name+'_') # split test set according to weekdays and save each into a separate file
+
+
+
 
 
 paths=[wip_dir + path for path in ['test_0.csv','test_1.csv','test_2.csv','test_3.csv','test_4.csv','test_5.csv','test_6.csv']]
 data=dp.load_merge(paths,index='date')
 test=dp.load(wip_dir+'test.csv',index='date')
-
-

@@ -842,4 +842,14 @@ f,_,_=data.index.min() # first day
 	if len(data.loc[l])<24*60: # if last day is incomplete
 		data=data.drop(l,level=0) # drop the whole day
 	
+
+
+
+for name,data in weather_split.items():
+	train_w,test_w=dp.train_test(data=data, test_size=0.255, base=7) # split into train & test sets
+	dp.save(data=train_w,path=wip_dir+'train_'+name+'.csv') # save train set
+	dp.save(data=test_w,path=wip_dir+'test_'+name+'.csv') # save test set
+	dp.save_dict(dic=dp.split(train_w,nsplits=7), path=wip_dir+'train_'+name+'_') # split train set according to weekdays and save each into a separate file
+	dp.save_dict(dic=dp.split(test_w,nsplits=7), path=wip_dir+'test_'+name+'_') # split test set according to weekdays and save each into a separate file
+
 	
