@@ -51,7 +51,7 @@ ets_v<-function(train,test,batch=7,freq=7,box_cox=FALSE,dec=FALSE){
 
 # NO PREPROCESSING
 
-data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/ets/data' # directory containing data
+data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/ets/data/' # directory containing data
 exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/ets/exp/' # directory for the results of experiments
 
 train<-load(path=paste(data_dir,'train.csv', sep=''),index='date') # load train set
@@ -176,6 +176,6 @@ for (i in 0:6){ # for each day
 for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
-  test_pred_vw<-ets_v(train,test,batch=1,freq=4,box_cox = TRUE,dec=TRUE) # horizontal predictions for this day
+  test_pred_vw<-ets_v(train,test,batch=1,freq=52,box_cox = TRUE,dec=TRUE) # horizontal predictions for this day
   save(data=test_pred_vw,path=paste(exp_dir,'dec,bc,ets_v_',i,'.csv',sep='')) # write results
 }

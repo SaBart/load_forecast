@@ -119,3 +119,24 @@ colnames(xreg) <- c('Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov',
 
 
 
+
+date_train<-train$date # extract date column from train set
+date_test<-test$date # extract date column from test set
+train<-train[ , !names(train) %in% c('date')] # drop date column from train set
+test<-test[ , !names(test) %in% c('date')] # drop date column from test set
+
+
+date_train<-train$date # extract date column from train set
+date_test<-test$date # extract date column from test set
+train<-train[ , !names(train) %in% c('date')] # drop date column from train set
+test<-test[ , !names(test) %in% c('date')] # drop date column from test set
+
+rownames(test_pred_hw)<-date_test # set "index"
+
+
+date_train<-train$date # extract date column from train set
+date_test<-test$date # extract date column from test set
+train<-train[ , !names(train) %in% c('date')] # drop date column from train set
+test<-test[ , !names(test) %in% c('date')] # drop date column from test set
+
+rownames(test_pred_vw)<-date_test # set "index"
