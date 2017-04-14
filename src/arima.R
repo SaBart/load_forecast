@@ -7,14 +7,21 @@ pop_col=function(data,col){ # removes and returns column from dataframe
   return(poped_col)
 }
 
-f_ords<-function(train,freq=48,freqs,ords){
+f_ords<-function(train,freq=48,freqs,ords,dec=FALSE,box_cox=FALSE){
   train<-c(t(train)) # flatten train set
   aicc_best<-Inf # best aicc statistic
   param_best<-NULL # best parameters
+  bc_lambda<-if (box_cox) BoxCox.lambda(train,method='guerrero') else NULL # estimate lambda for Box-Cox transformation
   for (i in 1:nrow(ords)){ # for each combination of orders
     ord<-unlist(ords[i,]) # combination of orders
     xreg_train<-fourier(msts(train,seasonal.periods=freqs),K=ord) # fourier terms for particular multi-seasonal time series
-    fit=auto.arima(ts(train,frequency = freq),xreg=xreg_train,seasonal=FALSE,trace=TRUE) # find best arima model
+    if (dec) # if decompose first
+    {
+      fit=stlm(ts(train,frequency = freq),method='arima',xreg=xreg_train,s.window='periodic',robust=TRUE,trace=TRUE,lambda = bc_lambda)$model  # find best arima model after decomposition
+    }
+    else{ # dont decompose
+      fit=auto.arima(ts(train,frequency = freq),xreg=xreg_train,seasonal=FALSE,trace=TRUE,lambda = bc_lambda) # find best arima model  
+    }
     if (fit$aicc<aicc_best){ # if there is an improvement in aicc statistic
       ord_best<-ord # save these orders
       aicc_best<-fit$aicc # save new best aicc value
@@ -23,7 +30,7 @@ f_ords<-function(train,freq=48,freqs,ords){
   return(ord_best)
 }
 
-arima<-function(train,test,hor=1,batch=7,freq=48,f_K=NULL,wxregs_train=NULL,wxregs_test=NULL,box_cox=FALSE,dec=FALSE){
+arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,f_K=NULL,wxregs_train=NULL,wxregs_test=NULL,box_cox=FALSE,dec=FALSE){
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test))),check.names = FALSE) # initialize matrix for predictions
   train<-c(t(train)) # flatten train set
   test<-c(t(test)) # flatten test set
@@ -83,24 +90,25 @@ arima_h<-function(train,test,batch=7,freq=48,f_K=NULL,wxregs_train=NULL,wxregs_t
   return(arima(train,test,hor=48,batch=batch,freq=freq,f_K=f_K,wxregs_train=wxregs_train,wxregs_test=wxregs_test,box_cox = box_cox,dec = dec))
 }
 
-arima_v<-function(train,test,batch=7,freq=7,f_K=NULL,wxregs_train=NULL,wxregs_test=NULL,box_cox=FALSE,dec=FALSE){
+arima_v<-function(train,test,f_K=NULL,wxregs_train=NULL,wxregs_test=NULL,...){
   test_pred<-data.frame(matrix(data=NA,nrow=nrow(test),ncol=ncol(test),dimnames=list(rownames(test),colnames(test))),check.names = FALSE) # initialize dataframe for predictions
   for (col in names(train)){
-    train_day<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
-    test_day<-as.data.frame(test[[col]],row.names=rownames(test)) # convert dataframe column to dataframe
-    colnames(train_day)<-c(col) # set column name to match
-    colnames(test_day)<-c(col) # set column name to match
-    if (is.null(wxregs_train)|is.null(wxregs_test))
+    train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
+    test_col<-as.data.frame(test[[col]],row.names=rownames(test)) # convert dataframe column to dataframe
+    colnames(train_col)<-c(col) # set column name to match
+    colnames(test_col)<-c(col) # set column name to match
+    f_K_col= if (!is.null(f_K)) f_K[[col]] else f_K
+    if (is.null(wxregs_train)|is.null(wxregs_test)) # no weather regressors
     {
-      wxregs_train_day<-NULL
-      wxregs_test_day<-NULL
+      wxregs_train_col<-NULL
+      wxregs_test_col<-NULL
     }
-    else
+    else # consider weather regressors
     {
-      wxregs_train_day<-lapply(wxregs_train,function(x) as.data.frame(`[[`(x, col))) # extract a particular column from each member of list of covariates
-      wxregs_test_day<-lapply(wxregs_test,function(x) as.data.frame(`[[`(x, col))) # extract a particular column from each member of list of covariates  
+      wxregs_train_col<-lapply(wxregs_train,function(x) as.data.frame(`[[`(x, col))) # extract a particular column from each member of list of covariates
+      wxregs_test_col<-lapply(wxregs_test,function(x) as.data.frame(`[[`(x, col))) # extract a particular column from each member of list of covariates  
     }
-    test_pred[[col]]<-arima(train_day,test_day,hor=1,batch=batch,freq=freq,f_K=f_K,wxregs_train=wxregs_train_day,wxregs_test=wxregs_test_day)[[col]] # predictions
+    test_pred[[col]]<-arima(train_col,test_col,hor=1,f_K=f_K_col,wxregs_train=wxregs_train_col,wxregs_test=wxregs_test_col,...)[[col]] # predictions
   }
   return(test_pred)
 }
@@ -111,7 +119,9 @@ data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/data/' # directory co
 
 train<-load(paste(data_dir,'train_full.csv', sep='')) # load train set
 
-ords=params<-expand.grid(lapply(freqs,function(x) seq(from=0,to=max_order,by=5))) # all combinations of fourier orders to try
+# horizontal predictions
+
+ords=params<-expand.grid(seq(from=5,to=20,by=5),seq(from=50,to=150,by=50)) # all combinations of fourier orders to try
 K_h<-f_ords(train,freq=365.25*48,freqs=c(48,7*48),ords=ords) # find best fourier coefficients
 K_h=c(10,6)
 
@@ -120,10 +130,31 @@ K_h=c(10,6)
 ords<-params<-expand.grid(seq(3)) # all combinations of fourier orders to try
 K_v <- sapply(names(train),function(x) NULL) # initialize empty list for orders
 for (col in names(train)){
-  train_day<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
-  colnames(train_day)<-c(col) # set column name to match
-  K_v[[col]]<-f_ords(train_day,freq=365.25,freqs=c(7),ords=ords) # find best fourier coefficients  
+  train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
+  colnames(train_col)<-c(col) # set column name to match
+  K_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords) # find best fourier coefficients  
 }
+
+# vertical predictions & BC
+
+ords<-params<-expand.grid(seq(3)) # all combinations of fourier orders to try
+bc_K_v <- sapply(names(train),function(x) NULL) # initialize empty list for orders
+for (col in names(train)){
+  train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
+  colnames(train_col)<-c(col) # set column name to match
+  bc_K_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords,box_cox=TRUE) # find best fourier coefficients  
+}
+
+# vertical predictions & DEC & BC
+
+ords<-params<-expand.grid(seq(3)) # all combinations of fourier orders to try
+dec_bc_K_v <- sapply(names(train),function(x) NULL) # initialize empty list for orders
+for (col in names(train)){
+  train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
+  colnames(train_col)<-c(col) # set column name to match
+  dec_bc_K_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords,dec=TRUE,box_cox=TRUE) # find best fourier coefficients  
+}
+
 
 
 # NO EXTERNAL REGRESSORS
@@ -276,13 +307,11 @@ test<-load(paste(data_dir,'test.csv', sep='')) # load test set
 # horizontal predictions
 K<-f_ords(train,freq=365.25*48,freqs=c(48,7*48),max_order=24) # find best fourier coefficients
 # K=c(10,6)
-test_pred_hf<-arima_h(train,test,batch=28,freq=48,f_K=K) # horizontal prediction
+test_pred_hf<-arima_h(train,test,batch=28,freq=48,f_K=dec_bc_K_h) # horizontal prediction
 save(data=test_pred_hf,path=paste(exp_dir,'dec,bc,freg,arima_h.csv',sep='')) # write results
 
 # vertical predictions
-K<-f_ords(train,freq=365.25,freqs=c(7),max_order=3) # find best fourier coefficients
-# K=c(2)
-test_pred_vf<-arima_v(train,test,batch=28,freq=7,f_K=K) # horizontal prediction
+test_pred_vf<-arima_v(train,test,batch=28,freq=7,f_K=dec_bc_K_v) # horizontal prediction
 save(data=test_pred_vf,path=paste(exp_dir,'dec,bc,freg,arima_v.csv',sep='')) # write results
 
 # DEC & BOX-COX & WEATHER EXTERNAL REGRESSORS
@@ -334,9 +363,9 @@ wxregs_train<-lapply(list('tempm_train.csv','hum_train.csv','pressurem_train.csv
 wxregs_test<-lapply(list('tempm_test.csv','hum_test.csv','pressurem_test.csv'),function(x) load(paste(data_dir,x,sep=''))) # load weather covariates for test set
 
 # horizontal predictions
-test_pred_hfw<-arima_h(train,test,batch=28,freq=24,f_K=K_h,wxreg_train=wxreg_train,wxreg_test=wxreg_test,dec=TRUE,box_cox = TRUE) # horizontal prediction
+test_pred_hfw<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),f_K=dec_bc_K_h,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=TRUE,box_cox = TRUE) # horizontal prediction
 save(data=test_pred_hfw,path=paste(exp_dir,'dec,bc,fwreg,arima_h.csv',sep='')) # write results
 
 # vertical predictions
-test_pred_vfw<-arima_h(train,test,batch=28,freq=7,f_K=K_v,wxreg_train=wxreg_train,wxreg_test=wxreg_test,dec=TRUE,box_cox = TRUE) # vertical prediction
+test_pred_vfw<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(7),f_K=dec_bc_K_v,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=TRUE,box_cox = TRUE) # vertical prediction
 save(data=test_pred_vfw,path=paste(exp_dir,'dec,bc,fwreg,arima_v.csv',sep='')) # write results
