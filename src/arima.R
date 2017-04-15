@@ -8,17 +8,16 @@ f_ords<-function(train,freq=48,freqs,ords,dec=FALSE,bc=FALSE){
   bc_lambda<-if (bc) BoxCox.lambda(train,method='guerrero') else NULL # estimate lambda for Box-Cox transformation
   for (i in 1:nrow(ords)){ # for each combination of orders
     ord<-unlist(ords[i,]) # combination of orders
-    xreg_train<-fourier(msts(train,seasonal.periods=freqs),K=ord) # fourier terms for particular multi-seasonal time series
-    if (dec) # if decompose first
-    {
-      fit=stlm(ts(train,frequency = freq),method='arima',xreg=xreg_train,s.window='periodic',robust=TRUE,trace=TRUE,lambda = bc_lambda)$model  # find best arima model after decomposition
+    xregs_train<-fourier(msts(train,seasonal.periods=freqs),K=ord) # fourier terms for particular multi-seasonal time series
+    if (dec) { # if decompose first
+      model<-stlm(ts(train,frequency = freq),method='arima',xreg=xregs_train,s.window='periodic',robust=TRUE,trace=TRUE,lambda = bc_lambda)$model  # find best arima model after decomposition      
     }
     else{ # dont decompose
-      fit=auto.arima(ts(train,frequency = freq),xreg=xreg_train,seasonal=FALSE,trace=TRUE,lambda = bc_lambda) # find best arima model  
+      model<-auto.arima(ts(train,frequency = freq),xreg=xregs_train,seasonal=FALSE,trace=TRUE,lambda = bc_lambda) # find best arima model 
     }
-    if (fit$aicc<aicc_best){ # if there is an improvement in aicc statistic
+    if (model$aicc<aicc_best){ # if there is an improvement in aicc statistic
       ord_best<-ord # save these orders
-      aicc_best<-fit$aicc # save new best aicc value
+      aicc_best<-model$aicc # save new best aicc value
     }
   }
   return(ord_best)
@@ -59,7 +58,7 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
       model<-NULL
       bc_lambda<-if (bc) BoxCox.lambda(train,method='guerrero') else NULL # estimate lambda for Box-Cox transformation
       if (dec){ # if decomposition is to be applied
-       model<-stlm(train_ts,method='arima',xreg=xregs,s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE,trace=TRUE) # find best model on the current train set
+        model<-stlm(train_ts,method='arima',xreg=xregs,s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE,trace=TRUE) # find best model on the current train set
       }
       else { # no decomposition
         model<-auto.arima(train_ts,xreg=xregs,lambda=bc_lambda,biasadj = FALSE,trace = TRUE) # find best model on the current train set
@@ -68,7 +67,13 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
     }
     else{ # it is not the time to retrain
       if (dec){
-        model<-stlm(train_ts,model=model$model,modelfunction=function(x, ...) {Arima(x, xreg=xregs, ...)},s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE) # do not train, use current model with new observations
+        if (!is.null(xregs))
+        {
+          model<-stlm(train_ts,model=model$model,modelfunction=function(x, ...) {Arima(x, xreg=xregs, ...)},s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE) # do not train, use current model with new observations  
+        }
+        else {
+          model<-stlm(train_ts,model=model,s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE) # do not train, use current model with new observations  
+        }
       }
       else
       {
@@ -81,7 +86,7 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
 }
 
 arima_h<-function(train,test,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_train=NULL,wxregs_test=NULL,bc=FALSE,dec=FALSE){
-  return(arima(train,test,hor=48,batch=batch,freq=freq,freqs=freqs,ord=ord,wxregs_train=wxregs_train,wxregs_test=wxregs_test,bc = bc,dec = dec))
+  return(arima(train,test,hor=48,batch=batch,freq=freq,freqs=freqs,ord=ord,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec = dec,bc = bc))
 }
 
 arima_v<-function(train,test,batch=7,freq=7,ord=NULL,freqs=NULL,wxregs_train=NULL,wxregs_test=NULL,bc=FALSE,dec=FALSE){
@@ -91,7 +96,6 @@ arima_v<-function(train,test,batch=7,freq=7,ord=NULL,freqs=NULL,wxregs_train=NUL
     test_col<-as.data.frame(test[[col]],row.names=rownames(test)) # convert dataframe column to dataframe
     colnames(train_col)<-c(col) # set column name to match
     colnames(test_col)<-c(col) # set column name to match
-    ord_col= if (!is.null(ord)) ord[[col]] else ord
     if (is.null(wxregs_train)|is.null(wxregs_test)) # no weather regressors
     {
       wxregs_train_col<-NULL
@@ -102,7 +106,7 @@ arima_v<-function(train,test,batch=7,freq=7,ord=NULL,freqs=NULL,wxregs_train=NUL
       wxregs_train_col<-lapply(wxregs_train,function(x) as.data.frame(`[[`(x, col))) # extract a particular column from each member of list of covariates
       wxregs_test_col<-lapply(wxregs_test,function(x) as.data.frame(`[[`(x, col))) # extract a particular column from each member of list of covariates  
     }
-    test_pred[[col]]<-arima(train_col,test_col,hor=1,batch=batch,freq=freq,freqs=freqs,ord=ord_col,wxregs_train=wxregs_train_col,wxregs_test=wxregs_test_col)[[col]] # predictions
+    test_pred[[col]]<-arima(train_col,test_col,hor=1,batch=batch,freq=freq,freqs=freqs,ord=ord,wxregs_train=wxregs_train_col,wxregs_test=wxregs_test_col,dec=dec,bc=bc)[[col]] # predictions
   }
   return(test_pred)
 }
@@ -116,9 +120,8 @@ train<-load(paste(data_dir,'train_full.csv', sep='')) # load train set
 
 # horizontal predictions
 
-ords=params<-expand.grid(seq(from=5,to=20,by=5),seq(from=10,to=50,by=10)) # all combinations of fourier orders to try
+ords=params<-expand.grid(c(5,10,15,20),c(10,25,50)) # all combinations of fourier orders to try
 ord_h<-f_ords(train,freq=365.25*48,freqs=c(48,7*48),ords=ords) # find best fourier coefficients
-ord_h=c(10,6)
 
 # vertical predictions
 
@@ -128,36 +131,6 @@ for (col in names(train)){
   train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
   colnames(train_col)<-c(col) # set column name to match
   ord_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords) # find best fourier coefficients  
-}
-
-# vertical predictions & BC
-
-ords<-params<-expand.grid(seq(3)) # all combinations of fourier orders to try
-bc_ord_v <- sapply(names(train),function(x) NULL) # initialize empty list for orders
-for (col in names(train)){
-  train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
-  colnames(train_col)<-c(col) # set column name to match
-  bc_ord_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords,bc=TRUE) # find best fourier coefficients  
-}
-
-# vertical predictions & DEC
-
-ords<-params<-expand.grid(seq(3)) # all combinations of fourier orders to try
-dec_ord_v <- sapply(names(train),function(x) NULL) # initialize empty list for orders
-for (col in names(train)){
-  train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
-  colnames(train_col)<-c(col) # set column name to match
-  dec_ord_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords,dec=TRUE) # find best fourier coefficients  
-}
-
-# vertical predictions & DEC & BC
-
-ords<-params<-expand.grid(seq(3)) # all combinations of fourier orders to try
-dec_bc_ord_v <- sapply(names(train),function(x) NULL) # initialize empty list for orders
-for (col in names(train)){
-  train_col<-as.data.frame(train[[col]],row.names=rownames(train)) # convert dataframe column to dataframe
-  colnames(train_col)<-c(col) # set column name to match
-  dec_bc_ord_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords,dec=TRUE,bc=TRUE) # find best fourier coefficients  
 }
 
 
@@ -183,17 +156,13 @@ for (i in 0:6){
 }
 
 params<-data.frame(row.names=c('np,','bc,','dec,','dec,bc,'),'bc'=c(FALSE,TRUE,FALSE,TRUE),'dec'=c(FALSE,FALSE,TRUE,TRUE))
-ords_h<-
-ords_v<-list('np,'=ord_v,'bc,'=bc_ord_v,'dec,'=dec_ord_v,'dec,bc,'=dec_bc_ord_v)
 
 for (name in rownames(params)){
   
   name<-'dec,bc,'
   bc<-params[name,]$bc
   dec<-params[name,]$dec
-  ord_h<-
-  ord_v<-ord$name
-    
+
   # NO EXTERNAL REGRESSORS
   
   # horizontal predictions
@@ -221,11 +190,11 @@ for (name in rownames(params)){
   #  FOURIER EXTERNAL REGRESSORS
 
   # horizontal predictions
-  test_pred_hf<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=ord_h,dec=dec,bc = bc) # horizontal prediction
+  test_pred_hf<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=c(5,10),dec=dec,bc = bc) # horizontal prediction
   save(data=test_pred_hf,path=paste(exp_dir,name,'fregs,arima_h.csv',sep='')) # write results
   
   # vertical predictions
-  test_pred_vf<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=ord_v,dec=dec,bc = bc) # horizontal prediction
+  test_pred_vf<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=3,dec=dec,bc = bc) # horizontal prediction
   save(data=test_pred_vf,path=paste(exp_dir,name,'fregs,arima_v.csv',sep='')) # write results
   
   
@@ -257,11 +226,11 @@ for (name in rownames(params)){
   # DEC & BOX-COX & FOURIER & WEATHER EXTERNAL REGRESSORS
   
   # horizontal predictions
-  test_pred_hfw<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=ord_h,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # horizontal prediction
+  test_pred_hfw<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=c(5,10),wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # horizontal prediction
   save(data=test_pred_hfw,path=paste(exp_dir,name,'fwregs,arima_h.csv',sep='')) # write results
   
   # vertical predictions
-  test_pred_vfw<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=ord_v,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # vertical prediction
+  test_pred_vfw<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=3,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # vertical prediction
   save(data=test_pred_vfw,path=paste(exp_dir,name,'fwregs,arima_v.csv',sep='')) # write results
 }
 
