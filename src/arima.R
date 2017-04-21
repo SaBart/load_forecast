@@ -133,7 +133,6 @@ for (col in names(train)){
   ord_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords) # find best fourier coefficients  
 }
 
-
 data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/data/' # directory containing data
 exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/results/' # directory for the results of experiments
 
@@ -159,7 +158,7 @@ params<-data.frame(row.names=c('np,','bc,','dec,','dec,bc,'),'bc'=c(FALSE,TRUE,F
 
 for (name in rownames(params)){
   
-  name<-'dec,bc,'
+  name<-'bc,'
   bc<-params[name,]$bc
   dec<-params[name,]$dec
 
@@ -223,7 +222,7 @@ for (name in rownames(params)){
   }
   
   
-  # DEC & BOX-COX & FOURIER & WEATHER EXTERNAL REGRESSORS
+  # FOURIER & WEATHER EXTERNAL REGRESSORS
   
   # horizontal predictions
   test_pred_hfw<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=c(5,10),wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # horizontal prediction

@@ -6,7 +6,7 @@ import pandas as pd
 import dataprep as dp
 import datavis as dv
 import imputation as imp
-import measures as ms
+import performance as pf
 import patsy
 import gc
 import rpy2.robjects as ro
@@ -38,9 +38,9 @@ data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True)
 #dv.nan_heat(data) # heatmap of nans
 
 # FILLING MISSING VALUES
-#ms.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for naive predictor for MASE
+#pf.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for naive predictor for MASE
 shift=60*24*7# the shift that performed best
-measures={'SMAE':ms.smae,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
+measures={'SMAE':pf.smae,'SRMSE':pf.srmse,'SMAPE':pf.smape,'MASE':partial(pf.mase,shift=shift)} # performance to consider
 
 random={} # params for random
 mean={'option':['mean','median','mode']} # params for mean
@@ -73,7 +73,7 @@ dp.save(imp_res,path=data_dir+'imp.csv',idx='datetime') # save results
 
 
 imp_res=dp.load(path=data_dir+'imp.csv',idx='method')
-imp_res=ms.rank(imp_res) # rank data
+imp_res=pf.rank(imp_res) # rank data
 
 # impute the whole dataset using three best methods of imputation
 data_nocb=imp.imp(data, alg=impts.na_locf, freq=1440, **{'option':'nocb','na.remaining':'rev'})
@@ -121,7 +121,6 @@ temp_dir=data_dir+'nocb/arima/data/' # where to save
 for col in weather: # for each column=weather parameter
 	data_w=dp.resample(data=weather[col], freq=48) # reshape to have time of day as columns
 	train_w,test_w=dp.train_test(data=data_w, test_size=0.255, base=7) # split into train & test sets
-	train_w=train_w.tail(364)
 	dp.save(data=train_w,path=temp_dir+col+'_train.csv',idx='date') # save train set
 	dp.save(data=test_w,path=temp_dir+col+'_test.csv',idx='date') # save test set
 	dp.save_dict(dic=dp.split(train_w,nsplits=7),path=temp_dir+col+'_train_',idx='date') # split train set according to weekdays and save each into a separate file
@@ -130,18 +129,31 @@ for col in weather: # for each column=weather parameter
 
 # EXPERIMENTAL RESULTS
 shift=48*7# the shift that performed best
-measures={'SMAE':ms.smae,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=shift)} # measures to consider
+measures={'SMAE':pf.smae,'SRMSE':pf.srmse,'SMAPE':pf.smape,'MASE':partial(pf.mase,shift=shift)} # performance to consider
 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/nocb/ets/results/' # directory containing results of experiments
 true=dp.load(data_dir+'nocb/ets/data/test.csv',idx='date',dates=True)
-results=ms.accs(exp_dir, true, measures=measures)
+results=pf.ev_dir(exp_dir, true, measures=measures) # evaluate performance of all results in directory
+results=pf.rank(results) # rank performance
+print(results.to_latex(float_format='%.4f')) # make table for latex
+
+pred=dp.load(exp_dir+'ets_v.csv',idx='date',dates=True) # load best predictions
+res=pf.ev_day(pred=pred,true=true,measures=measures) # evaluate performance for each day separately
+
+res.groupby(res.index.weekday).mean().plot() # average performance as the time from retraining increases 
+
+res_rank=pf.rank(res)
+
+pred=pred.reindex(res_rank.index)
+true=true.reindex(res_rank.index)
+
+pd.concat([pred.set_index(['pred'],append=True),true.set_index(['true'],append=True)])
+
+temp=pd.concat([pred,true],axis='index',keys=['pred','true'])
+temp=temp.swaplevel().sort_index()
+(temp.loc['02-02-2010'].T.columns.droplevel(0)).plot()
 
 
 
 
 
-
-
-paths=[wip_dir + path for path in ['test_0.csv','test_1.csv','test_2.csv','test_3.csv','test_4.csv','test_5.csv','test_6.csv']]
-data=dp.load_merge(paths,index='date')
-test=dp.load(wip_dir+'test.csv',index='date')

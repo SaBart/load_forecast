@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import dataprep as dp
-import measures as ms
+import performance as pf
 import rpy2.robjects as ro
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
@@ -68,7 +68,7 @@ def out_dist(data):
 	return out_dist
 
 # returns data imputed with the best method
-def opt_imp(data,methods,n_iter=10,freq=1440,measures={'SMAE':ms.smae,'RMSE':ms.rmse,'SRMSE':ms.srmse,'SMAPE':ms.smape,'MASE':partial(ms.mase,shift=60*24*7)}):
+def opt_imp(data,methods,n_iter=10,freq=1440,measures={'SMAE':pf.smae,'RMSE':pf.rmse,'SRMSE':pf.srmse,'SMAPE':pf.smape,'MASE':partial(pf.mase,shift=60*24*7)}):
 	dist=out_dist(data) # get the distribution of outage lengths
 	data_lno=lno(data) # get the longest no outage (LNO)
 	ts=ro.r.ts # R time series object
@@ -87,8 +87,8 @@ def opt_imp(data,methods,n_iter=10,freq=1440,measures={'SMAE':ms.smae,'RMSE':ms.
 				data_imp=pd.Series(index=data_out.index,data=np.reshape(pandas2ri.ri2py(alg(data_out_ts,**kwargs)),newshape=data_out.shape, order='C')) # get results of imputation from R & construct DataFrame using original index and columns
 				#data_imp=imp(data=data_out,alg=alg,**kwargs) # impute data with said methods
 				label=','.join([name]+[str(key)+':'+str(kwargs[key]) for key in sorted(kwargs)]) # build entry label from sorted keys
-				score=ms.acc(pred=data_imp,true=data_lno,label=label,measures=measures) # compute accuracy measures
-				result=pd.concat([result,score]) # append computed measures
+				pfm=pf.ev(pred=data_imp,true=data_lno,label=label,measures=measures) # evaluate performance
+				result=pd.concat([result,pfm]) # append computed performance
 		result.index.name='method' # name index column
 		results.append(result) # add to results
 	pandas2ri.deactivate() # deactivate connection
