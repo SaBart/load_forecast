@@ -1,7 +1,6 @@
 # DATA PROCESSING METHODS
 
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import csv
 import rpy2.robjects as ro
@@ -96,7 +95,9 @@ def resample(data,freq=1440):
 
 # flattens data, converts columns into a multiindex level
 def d2s(data):
-	if not isinstance(data, pd.Series): data=data.stack(dropna=False) # if not Series (already flat) then flatten
+	if not isinstance(data, pd.Series):
+			data=data.stack(dropna=False) # if not Series (already flat) then flatten
+			data.index=pd.to_datetime(data.index.get_level_values(0).astype(str)+' '+ data.index.get_level_values(1),format='%Y-%m-%d %H%M')
 	return data
 	
 # invert d2s operation

@@ -852,4 +852,28 @@ for name,data in weather_split.items():
 	dp.save_dict(dic=dp.split(train_w,nsplits=7), path=wip_dir+'train_'+name+'_') # split train set according to weekdays and save each into a separate file
 	dp.save_dict(dic=dp.split(test_w,nsplits=7), path=wip_dir+'test_'+name+'_') # split test set according to weekdays and save each into a separate file
 
+
+import figures as f
+
+# Simple plot
+fig, ax  = f.newfig(0.6)
+
+def ema(y, a):
+    s = []
+    s.append(y[0])
+    for t in range(1, len(y)):
+        s.append(a * y[t] + (1-a) * s[t-1])
+    return np.array(s)
+    
+y = [0]*200
+y.extend([20]*(1000-len(y)))
+s = ema(y, 0.01)
+
+ax.plot(s)
+ax.set_xlabel('X Label')
+ax.set_ylabel('EMA')
+
+img_dir='C:/Users/SABA/Google Drive/mtsg/text/img/'
+
+f.p2l(img_dir + 'test')
 	

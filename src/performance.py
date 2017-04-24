@@ -1,9 +1,8 @@
-'''MEASURES'''
+'''PERFORMANCE MEASURES'''
 
 import os as os
 import re as re
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import patsy
 import dataprep as dp
@@ -55,7 +54,7 @@ def opt_shift(data, shifts=[48,48*7]):
 	results=pd.DataFrame() # empty dataframe for scores
 	for s1,s2 in [(s1,s2) for s1 in shifts for s2 in shifts]: # for each shift to consider
 		if s1==s2: continue # skip if shifts are equal
-		measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=s2)} # measures to consider	
+		measures={'SMAE':smae,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=s2)} # measures to consider	
 		score=ev(pred=data.shift(s1), true=data,label='pred:{},true:{}'.format(s1,s2),measures=measures) # compute accuracy measures
 		results=pd.concat([results,score]) # append computed measures
 	return results

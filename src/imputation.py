@@ -1,7 +1,6 @@
 '''DATA IMPUTATION'''
 
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 import dataprep as dp
 import performance as pf

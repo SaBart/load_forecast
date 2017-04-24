@@ -1,10 +1,10 @@
 '''WORKSPACE'''
 
 import numpy as np
-import matplotlib.pyplot as plt
+#import figures as fig
 import pandas as pd
 import dataprep as dp
-import datavis as dv
+#import datavis as dv
 import imputation as imp
 import performance as pf
 import patsy
@@ -17,6 +17,7 @@ from sklearn.metrics import r2_score
 from tqdm import tqdm
 from importlib import reload
 from functools import partial
+from dataprep import resample
 
 
 impts=importr('imputeTS') # package for time series imputation
@@ -24,6 +25,7 @@ impts=importr('imputeTS') # package for time series imputation
 # CONSTANTS
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory containing results of experiments
+img_dir='C:/Users/SABA/Google Drive/mtsg/text/img/' # directory for figures
 wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # work in progress directory
 
 # LOAD DATA
@@ -38,7 +40,8 @@ data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True)
 #dv.nan_heat(data) # heatmap of nans
 
 # FILLING MISSING VALUES
-#pf.opt_shift(data,shifts=[60*24,60*24*7]) # find the best shift for naive predictor for MASE
+data_res=resample(data,freq=1440)
+results=pf.opt_shift(data_res,shifts=[48,7*48]) # find the best shift for naive predictor for MASE
 shift=60*24*7# the shift that performed best
 measures={'SMAE':pf.smae,'SRMSE':pf.srmse,'SMAPE':pf.smape,'MASE':partial(pf.mase,shift=shift)} # performance to consider
 
@@ -154,6 +157,22 @@ temp=temp.swaplevel().sort_index()
 (temp.loc['02-02-2010'].T.columns.droplevel(0)).plot()
 
 
+f,ax=fig.new(1)
+
+import matplotlib.pyplot as plt
+f,ax=plt.subplots(nrows=2,ncols=1)
+
+week=dp.d2s(true.head(1))
+week.plot(ax=ax[0])
+week.head(7).plot(ax=ax[1])
 
 
 
+
+data.plot(ax=ax[0,0])
+df2.plot(ax=axes[0,1])
+
+data.head(365*48).plot()
+
+week.apply(lambda x: combine(week.index.get_level_values(1),week.index.get_level_values(1)), axis=1)
+pd.to_datetime(week.index.get_level_values(1)+ ' ' + week.index.get_level_values(1))
