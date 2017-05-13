@@ -27,8 +27,12 @@ def create_model(n_in=24, n_out=24, n_hidden=10, activation='relu', loss='mean_s
 
 
 np.random.seed(0) # fix seed for reprodicibility
-path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv' # data path
-load=dp.load(path) # load data
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/nn/' # directory containing results of experiments
+
+data=dp.load(path=data_dir+'data_imp.csv',idx='datetime',cols='load',dates=True) # load data
+
+
 load_with_nans=load.apply(axis=1,func=(lambda x: np.nan if (x.isnull().sum()>0) else x.mean())).unstack() # custom sum function where any Nan in arguments gives Nan as result
 # set grid search parameters and ranges
 grid_space={'n_hidden':[10,20,30],

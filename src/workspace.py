@@ -1,10 +1,8 @@
 '''WORKSPACE'''
 
 import numpy as np
-#import figures as fig
 import pandas as pd
 import dataprep as dp
-#import datavis as dv
 import imputation as imp
 import performance as pf
 import patsy
@@ -18,28 +16,28 @@ from tqdm import tqdm
 from importlib import reload
 from functools import partial
 from dataprep import resample
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
+from datetime import datetime
 
-
-impts=importr('imputeTS') # package for time series imputation
 
 # CONSTANTS
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory containing results of experiments
 img_dir='C:/Users/SABA/Google Drive/mtsg/text/img/' # directory for figures
-wip_dir='C:/Users/SABA/Google Drive/mtsg/data/wip/' # work in progress directory
 
 # LOAD DATA
 #data=dp.load_lp(data_dir+'household_power_consumption.csv') # load data
 #dp.save(data,path=data_dir+'data.csv',idx='datetime') # save processed data
 data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True)
 # data=dp.cut(data) # remove incomplete first and last days
-
 # VISUALIZE DATA
 #dv.nan_hist(data) # histogram of nans
 #dv.nan_bar(data) # bar chart of nans
 #dv.nan_heat(data) # heatmap of nans
 
-# FILLING MISSING VALUES
+# IMPUTATION
+impts=importr('imputeTS') # package for time series imputation
 data_res=resample(data,freq=1440)
 results=pf.opt_shift(data_res,shifts=[48,7*48]) # find the best shift for naive predictor for MASE
 shift=60*24*7# the shift that performed best
@@ -47,7 +45,7 @@ measures={'SMAE':pf.smae,'SRMSE':pf.srmse,'SMAPE':pf.smape,'MASE':partial(pf.mas
 
 random={} # params for random
 mean={'option':['mean','median','mode']} # params for mean
-ma={'weighting':['simple','linear','exponential'],'k':np.arange(2,15)} # params for moving average
+ma={'weighting':['simple','linear','exponential'],'k':np.arange(1,11)} # params for moving average
 locf={'option':['locf','nocb'],'na.remaining':['rev']} # params for last observation carry forward
 interpol={'option':['linear','spline','stine']} # params for interpolation
 kalman={'model':['auto.arima','StructTS']}
@@ -59,7 +57,6 @@ dec_split=[{**{'algorithm':['random']},**random},
 		{**{'algorithm':['kalman']},**kalman}]
 
 
-
 # simple methods to use for imputation
 methods=[{'name':'random','alg':impts.na_random,'opt':random},
 		{'name':'mean','alg':impts.na_mean,'opt':mean},
@@ -67,39 +64,28 @@ methods=[{'name':'random','alg':impts.na_random,'opt':random},
 		{'name':'locf','alg':impts.na_locf,'opt':locf},
 		{'name':'interpol','alg':impts.na_interpolation,'opt':interpol},
 		{'name':'kalman','alg':impts.na_kalman,'opt':kalman}]
+
 # add more complex methods
 methods+=[{'name':'seadec','alg':impts.na_seadec,'opt':opt} for opt in dec_split]+[{'name':'seasplit','alg':impts.na_seasplit,'opt':opt} for opt in dec_split]
 
 np.random.seed(0) # fix seed for reprodicibility
 imp_res=imp.opt_imp(data,methods=methods, n_iter=10,measures=measures)
-dp.save(imp_res,path=data_dir+'imp.csv',idx='datetime') # save results
+dp.save(imp_res,path=data_dir+'imp.csv',idx='method') # save results
 
-
-imp_res=dp.load(path=data_dir+'imp.csv',idx='method')
-imp_res=pf.rank(imp_res) # rank data
-
-# impute the whole dataset using three best methods of imputation
-data_nocb=imp.imp(data, alg=impts.na_locf, freq=1440, **{'option':'nocb','na.remaining':'rev'})
-data_seadec=imp.imp(data, alg=impts.na_seadec, freq=1440, **{'algorithm':'ma','weighting':'simple','k':2})
-data_arima=imp.imp(data, alg=impts.na_kalman, freq=1440, **{'model':'auto.arima'}) # arima(5,1,0) is the best model
-
-# save imputed data
-dp.save(data_nocb, path=data_dir+'data_nocb.csv', idx='datetime')
-dp.save(data_seadec, path=data_dir+'data_seadec.csv', idx='datetime')
-dp.save(data_arima, path=data_dir+'data_arima.csv', idx='datetime')
+data=imp.imp(data, alg=impts.na_seadec, freq=1440, **{'algorithm':'ma','weighting':'linear','k':2}) # impute the whole dataset using three best methods of imputation
+dp.save(data, path=data_dir+'data_imp.csv', idx='datetime') # save imputed data
 
 
 # AGGREGATE DATA & CREATE TRAIN & TEST SETS
-temp_dir=data_dir+'nocb/arima/data/' # where to save 	
-data=dp.load(path=data_dir+'data_nocb.csv',idx='datetime',cols='load',dates=True) # load imputed data
+temp_dir=exp_dir+'data/' # where to save 	
+data=dp.load(path=data_dir+'data_imp.csv',idx='datetime',cols='load',dates=True) # load imputed data
 
-data=dp.resample(data) # aggregate minutes to half-hours
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
 train,test=dp.train_test(data=data, test_size=0.255, base=7) # split into train & test sets
-train=train.tail(364)
-dp.save(data=train,path=temp_dir+'/train.csv',idx='date') # save train set
-dp.save(data=test,path=temp_dir+'/test.csv',idx='date') # save test set
-dp.save_dict(dic=dp.split(train,nsplits=7),path=temp_dir+'/train_',idx='date') # split train set according to weekdays and save each into a separate file
-dp.save_dict(dic=dp.split(test,nsplits=7),path=temp_dir+'/test_',idx='date') # split test set according to weekdays and save each into a separate file
+dp.save(data=train,path=temp_dir+'train.csv',idx='date') # save train set
+dp.save(data=test,path=temp_dir+'test.csv',idx='date') # save test set
+dp.save_dict(dic=dp.split(train,nsplits=7),path=temp_dir+'train_',idx='date') # split train set according to weekdays and save each into a separate file
+dp.save_dict(dic=dp.split(test,nsplits=7),path=temp_dir+'test_',idx='date') # split test set according to weekdays and save each into a separate file
 	
 
 # WEATHER DATA
@@ -119,10 +105,11 @@ paths=['weather_1.csv','weather_2.csv','weather_3.csv','weather_4.csv'] # files 
 weather=dp.load_concat_w([data_dir+path for path in paths],idx='timestamp',cols=['tempm','hum','pressurem'],dates=True) # join all parts of weather data
 weather.fillna(method='bfill',inplace=True) # fill missiong values (for column with maximum missin it is still only 0.045% of all)
 
-# splitting, aggregating & saving weather datas
-temp_dir=data_dir+'nocb/arima/data/' # where to save
+# splitting, aggregating & saving weather data
+temp_dir=data_dir+'experiments/data/' # where to save
 for col in weather: # for each column=weather parameter
-	data_w=dp.resample(data=weather[col], freq=48) # reshape to have time of day as columns
+	data_w=dp.z_val(weather[col]) # standardize data
+	data_w=dp.resample(data=data_w, freq=48) # reshape to have time of day as columns
 	train_w,test_w=dp.train_test(data=data_w, test_size=0.255, base=7) # split into train & test sets
 	dp.save(data=train_w,path=temp_dir+col+'_train.csv',idx='date') # save train set
 	dp.save(data=test_w,path=temp_dir+col+'_test.csv',idx='date') # save test set
@@ -130,49 +117,169 @@ for col in weather: # for each column=weather parameter
 	dp.save_dict(dic=dp.split(test_w,nsplits=7),path=temp_dir+col+'_test_',idx='date') # split test set according to weekdays and save each into a separate file
 
 
-# EXPERIMENTAL RESULTS
-shift=48*7# the shift that performed best
-measures={'SMAE':pf.smae,'SRMSE':pf.srmse,'SMAPE':pf.smape,'MASE':partial(pf.mase,shift=shift)} # performance to consider
+# IMPUTATION RESULTS
 
-exp_dir='C:/Users/SABA/Google Drive/mtsg/data/nocb/ets/results/' # directory containing results of experiments
-true=dp.load(data_dir+'nocb/ets/data/test.csv',idx='date',dates=True)
-results=pf.ev_dir(exp_dir, true, measures=measures) # evaluate performance of all results in directory
-results=pf.rank(results) # rank performance
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/imp/' # directory containing results of experiments
+results=dp.load(exp_dir + 'imp.csv',idx='method')
+results=results.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
+results=results[['SRMSE','MASE','SMAPE','SMAE']]
 print(results.to_latex(float_format='%.4f')) # make table for latex
 
-pred=dp.load(exp_dir+'ets_v.csv',idx='date',dates=True) # load best predictions
-res=pf.ev_day(pred=pred,true=true,measures=measures) # evaluate performance for each day separately
 
-res.groupby(res.index.weekday).mean().plot() # average performance as the time from retraining increases 
+# DATA ANALYSIS
 
-res_rank=pf.rank(res)
+# BC decomposition graph
+bc=dp.load(path=data_dir+'train_bc.csv', idx='date', dates=True)['2007-03-24':'2007-04-02']
+bc=bc.reset_index()
+f,ax=plt.subplots(nrows=2,ncols=1,sharex=True)
 
-pred=pred.reindex(res_rank.index)
-true=true.reindex(res_rank.index)
-
-pd.concat([pred.set_index(['pred'],append=True),true.set_index(['true'],append=True)])
-
-temp=pd.concat([pred,true],axis='index',keys=['pred','true'])
-temp=temp.swaplevel().sort_index()
-(temp.loc['02-02-2010'].T.columns.droplevel(0)).plot()
-
-
-f,ax=fig.new(1)
-
-import matplotlib.pyplot as plt
-f,ax=plt.subplots(nrows=2,ncols=1)
-
-week=dp.d2s(true.head(1))
-week.plot(ax=ax[0])
-week.head(7).plot(ax=ax[1])
+bc['load'].plot(ax=ax[0])
+bc['Box-Cox'].plot(ax=ax[1])
+ax[1].minorticks_off()
+ax[1].set_xticks([i*48 for i in range(11)])
+ax[1].set_xticklabels(['Fri','Sat','Sun','Mon','Tue','Wen','Thu','Fri','Sat','Sun','Mon'],fontsize=16)
+for a in ax:
+	a.tick_params(labelsize=16)
+	a.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+ax[0].set_ylabel('Load (kW)',fontsize=18)
+ax[1].set_ylabel('Box-Cox',fontsize=18)
+plt.xlabel('Day of week',fontsize=18)
 
 
+# STL decomposition graph
+dec=dp.load(path=data_dir+'train_dec.csv', idx='date', dates=True)['2007-03-24':'2007-04-02']
+dec=dec.reset_index()
+
+f,ax=plt.subplots(nrows=4,ncols=1,sharex=True)
+dec['load'].plot(ax=ax[0])
+dec['seasonal'].plot(ax=ax[1])
+dec['trend'].plot(ax=ax[2])
+dec['remainder'].plot(ax=ax[3])
+ax[3].minorticks_off()
+ax[3].set_xticks([i*48 for i in range(11)])
+ax[3].set_xticklabels(['Fri','Sat','Sun','Mon','Tue','Wen','Thu','Fri','Sat','Sun','Mon'],fontsize=16)
+for a in ax:
+	a.tick_params(labelsize=16)
+	a.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+ax[0].set_ylabel('Load (kW)',fontsize=18)
+ax[1].set_ylabel('Seasonality (kW)',fontsize=18)
+ax[2].set_ylabel('Trend (kW)',fontsize=18)
+ax[3].set_ylabel('Remainder (kW)',fontsize=18)
+#for a in ax:a.set_ylabel('Load (kW)')
+plt.xlabel('Day of week',fontsize=18)
 
 
-data.plot(ax=ax[0,0])
-df2.plot(ax=axes[0,1])
+# plot outages for time intervals
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.cut(data=data,freq=1440) # remove incomplete first and last days
+data=data.isnull().resample(rule='30Min',closed='left',label='left').sum() # count nans for each half-hour
+data=data.value_counts()
+data.index=data.index.astype(int)
+data=data.sort_index()
 
-data.head(365*48).plot()
+f,ax=plt.subplots() # get axis handle
+ax.set_xticks(data.index)
+ax.set_xticklabels(data.index,fontsize=16)
+ax.set_yscale('log') # set logarithmic scale for y-values
+ax.set_yticks(data)
+ax.set_yticklabels(data,fontsize=16)
+ax.grid(linestyle=':',axis='y',zorder=0)
+ax.grid(axis='x',visible=False)
+ax.set_xlabel('Outage length (min)',fontsize=18)
+ax.set_ylabel('Number of half-hour intervals',fontsize=18)
+data.plot(ax=ax,kind='bar',align='center',edgecolor='k',zorder=3,width=1.0,grid=True)
 
-week.apply(lambda x: combine(week.index.get_level_values(1),week.index.get_level_values(1)), axis=1)
-pd.to_datetime(week.index.get_level_values(1)+ ' ' + week.index.get_level_values(1))
+
+# plot outage lengths
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.cut(data=data,freq=1440) # remove incomplete first and last days
+out_len=imp.out_len(data)
+out_len=pd.Series(out_len)
+
+f,ax=plt.subplots() # get axis handle
+ax.set_xticks(out_len.index)
+ax.set_xticklabels(out_len.index,fontsize=16)
+ax.set_yscale('log') # set logarithmic scale for y-values
+ax.set_yticks(out_len)
+ax.set_yticklabels(out_len,fontsize=16)
+ax.grid(linestyle=':',axis='y',zorder=0)
+ax.grid(axis='x',visible=False)
+ax.set_xlabel('Outage length (min)',fontsize=18)
+ax.set_ylabel('Count',fontsize=18)
+out_len.plot(ax=ax,kind='bar',align='center',edgecolor='k',zorder=3,width=1.0,grid=True)
+
+
+# average day
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+
+f,ax=plt.subplots() # get axis handle
+data.mean().plot(ax=ax,kind='bar',align='edge',edgecolor='k',width=1.0)
+ax.tick_params(labelsize=16)
+ax.set_xticks(range(49))
+ax.set_xticklabels([pd.to_datetime(time,format='%H%M').strftime('%H:%M') for time in data.columns] + ['24:00'])
+ax.set_xlabel('Time',fontsize=18)
+ax.set_ylabel('Load (kW)',fontsize=18)
+
+
+# average Mon, Tue,...
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+days=dp.split(data,nsplits=7)
+labels=['Sun','Mon','Tue','Wen','Thu','Fri','Sat']
+
+f,ax=plt.subplots(nrows=7,ncols=1,sharex=True)
+for i,load in days.items():
+	load.mean().plot(ax=ax[i],kind='bar',align='edge',edgecolor='k',width=1.0)
+	ax[i].tick_params(labelsize=16)
+	ax[i].set_yticks([0.0,1.0,2.0])
+	ax[i].yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+	ax[i].set_ylabel(labels[i],fontsize=18)
+ax[6].set_xticks(range(49))
+ax[6].set_xticklabels([pd.to_datetime(time,format='%H%M').strftime('%H:%M') for time in data.columns] + ['24:00'])
+ax[6].set_xlabel('Time',fontsize=18,labelpad=8)
+f.text(0.07, 0.5, 'Load (kW)', ha='center', va='center', rotation='vertical',fontsize=18)
+
+# EXPERIMENTAL RESULTS
+
+shift=48*7# the shift that performed best
+measures={'SRMSE':pf.srmse,'MASE':partial(pf.mase,shift=shift),'SMAPE':pf.smape,'SMAE':pf.smae,} # performance to consider
+
+# table for latex
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/arimax/' # directory containing results of experiments
+true=dp.load(data_dir+'experiments/data/test.csv',idx='date',dates=True)
+results=pf.ev_dir(exp_dir, true, measures=measures) # evaluate performance of all results in directory
+results=results.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
+results=results[['SRMSE','MASE','SMAPE','SMAE']]
+print(results.to_latex(float_format='%.4f')) # make table for latex
+
+
+# best & worst day graphs for best method
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/arimax/' # directory containing results of experiments
+pred=dp.load(exp_dir+'ha,fregs,arimax.csv',idx='date',dates=True) # load best predictions
+true=dp.load(data_dir+'experiments/data/test.csv',idx='date',dates=True) # load true values for test set
+results=pf.ev_day(pred=pred,true=true,measures=measures) # evaluate performance for each day separately
+results=results.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
+results=results[['SRMSE','MASE','SMAPE','SMAE']]
+
+f,ax=plt.subplots(nrows=2,ncols=1,sharex=True)
+true.loc['2010-02-02'].plot(ax=ax[0],marker='o')
+pred.loc['2010-02-02'].plot(ax=ax[0],marker='s')
+true.loc['2010-08-27'].plot(ax=ax[1],marker='o')
+pred.loc['2010-08-27'].plot(ax=ax[1],marker='s')
+ax[1].minorticks_off()
+ax[1].set_xticks([i*8 for i in range(7)])
+ax[1].set_xticklabels(['00:00','04:00','08:00','12:00','16:00','20:00','24:00'],fontsize=16)
+for a in ax:
+	a.tick_params(labelsize=16)
+	a.yaxis.set_major_formatter(FormatStrFormatter('%.1f'))
+ax[0].set_ylabel('Best day (kW)',fontsize=18)
+ax[1].set_ylabel('Worst day (kW)',fontsize=18)
+ax[1].legend(loc=0,labels=['true','forecast'],fontsize=16)
+plt.xlabel('Hour',fontsize=18)
+

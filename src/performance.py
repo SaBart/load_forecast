@@ -72,7 +72,7 @@ def ev_dir(pred_dir,true,measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE'
 	preds=[re.match(r'^[^0-9]*$', name).group(0) for name in os.listdir(pred_dir) if re.match(r'^[^0-9]*$', name)] # list of files for performance evaluation
 	merge_bases={re.split(r'[0-9]',name)[0] for name in os.listdir(pred_dir) if len(re.split(r'[0-9]',name))>1} # find all bases to merge
 	for base in merge_bases: # for each base to merge
-		name =re.sub(r'_$', 'w', base)+'.csv' # create name for merged predictions
+		name ='wa,'+ re.sub(r'_$', '', base)+'.csv' # create name for merged predictions
 		if name in preds: continue
 		paths=[pred_dir +base +str(i) +'.csv' for i in range(7)] # make relevant paths
 		pred=dp.load_merge(paths, idx='date', dates=True) # load and merge partitions
@@ -99,9 +99,9 @@ def ev_day(pred,true,measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':sma
 # computes min & mean rank according to performance measures
 def rank(data):
 	sum_perf=data.sum(axis='columns') # sum performance measures
-	data['rank']=data.rank(method='dense',ascending=True).min(axis='columns') # add column with mean rank
 	data['mean_rank']=data.rank(method='dense',ascending=True).mean(axis='columns') # add column with mean rank
+	data['min_rank']=data.rank(method='dense',ascending=True).min(axis='columns') # add column with mean rank
 	data['sum']=sum_perf # add sum column
-	data.sort_values(by=['rank','mean_rank','sum'],inplace=True) # sort by rank
-	data=data.drop(['mean_rank','sum'],axis='columns') # remove unnecessary columns
+	data=data.sort_values(by=['sum','mean_rank','min_rank']) # sort by rank
+	#data=data.drop(['sum'],axis='columns') # remove unnecessary columns
 	return data

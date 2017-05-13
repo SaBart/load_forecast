@@ -9,9 +9,9 @@ ets_w<-function(train,test,hor=48,batch=7,freq=48,box_cox=FALSE, dec=FALSE){
   for (i in seq(0,length(test)-hor,hor)){ # for each sample in test set
     train_ts<-ts(c(train,test[seq_len(i)]),frequency=freq) # add new observations from test set to the current train set
     if (i%%(batch*hor)==0){ # # if its time to retrain
-      bc_lambda<-if (box_cox) BoxCox.lambda(train,method='guerrero') else NULL # estimate lambda for Box-Cox transformation
+      bc_lambda<-if (box_cox) BoxCox.lambda(train,method='loglik') else NULL # estimate lambda for Box-Cox transformation
       if (dec){
-        model<-stlm(train_ts,method='ets',allow.multiplicative.trend = TRUE,s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj=FALSE)
+        model<-stlm(train_ts,method='ets',allow.multiplicative.trend = TRUE,s.window=7,robust=TRUE,lambda=bc_lambda,biasadj=FALSE)
         cat(i%/%(batch*hor),model$model$components,'\n') # print number of retrainings and the type of model
       }
       else{
@@ -21,7 +21,7 @@ ets_w<-function(train,test,hor=48,batch=7,freq=48,box_cox=FALSE, dec=FALSE){
     }
     else{ # it is not the time to retrain
       if (dec){
-        model<-stlm(train_ts,model=model,s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj=FALSE) # do not train, use current model with new observations
+        model<-stlm(train_ts,model=model,s.window=7,robust=TRUE,lambda=bc_lambda,biasadj=FALSE) # do not train, use current model with new observations
       }
       else{
         model<-ets(train_ts,model=model,lambda=bc_lambda,biasadj=FALSE)
@@ -59,18 +59,18 @@ test<-load(path=paste(data_dir,'test.csv', sep=''),index='date') # load test set
 
 # horizontal prediction
 test_pred_h<-ets_h(train,test,batch=7,freq=48) # predict values
-save(data=test_pred_h,path=paste(exp_dir,'ets_h.csv',sep='')) # write results
+save(data=test_pred_h,path=paste(exp_dir,'ets.csv',sep='')) # write results
 
 # vertical predictions
 test_pred_v<-ets_v(train,test,batch=7,freq=7) # predict values
-save(data=test_pred_v,path=paste(exp_dir,'ets_v.csv',sep='')) # write results
+save(data=test_pred_v,path=paste(exp_dir,'ha,ets.csv',sep='')) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_hw<-ets_h(train,test,batch=1,freq=48) # horizontal predictions for this day
-  save(data=test_pred_hw,path=paste(exp_dir,'ets_h_',i,'.csv',sep='')) # write results
+  save(data=test_pred_hw,path=paste(exp_dir,'ets_',i,'.csv',sep='')) # write results
 }
 
 # vertical predictions for each day separately
@@ -78,7 +78,7 @@ for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_vw<-ets_v(train,test,batch=1,freq=52) # horizontal predictions for this day
-  save(data=test_pred_vw,path=paste(exp_dir,'ets_v_',i,'.csv',sep='')) # write results
+  save(data=test_pred_vw,path=paste(exp_dir,'ha,ets_',i,'.csv',sep='')) # write results
 }
 
 
@@ -92,18 +92,18 @@ test<-load(path=paste(data_dir,'test.csv', sep=''),index='date') # load test set
 
 # horizontal prediction
 test_pred_h<-ets_h(train,test,batch=7,freq=48,box_cox = TRUE) # predict values
-save(data=test_pred_h,path=paste(exp_dir,'bc,ets_h.csv',sep='')) # write results
+save(data=test_pred_h,path=paste(exp_dir,'bc,ets.csv',sep='')) # write results
 
 # vertical predictions
 test_pred_v<-ets_v(train,test,batch=7,freq=7,box_cox = TRUE) # predict values
-save(data=test_pred_v,path=paste(exp_dir,'bc,ets_v.csv',sep='')) # write results
+save(data=test_pred_v,path=paste(exp_dir,'ha,bc,ets.csv',sep='')) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_hw<-ets_h(train,test,batch=1,freq=48,box_cox = TRUE) # horizontal predictions for this day
-  save(data=test_pred_hw,path=paste(exp_dir,'bc,ets_h_',i,'.csv',sep='')) # write results
+  save(data=test_pred_hw,path=paste(exp_dir,'bc,ets_',i,'.csv',sep='')) # write results
 }
 
 # vertical predictions for each day separately
@@ -111,7 +111,7 @@ for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_vw<-ets_v(train,test,batch=1,freq=52,box_cox = TRUE) # horizontal predictions for this day
-  save(data=test_pred_vw,path=paste(exp_dir,'bc,ets_v_',i,'.csv',sep='')) # write results
+  save(data=test_pred_vw,path=paste(exp_dir,'ha,bc,ets_',i,'.csv',sep='')) # write results
 }
 
 
@@ -125,18 +125,18 @@ test<-load(path=paste(data_dir,'test.csv', sep=''),index='date') # load test set
 
 # horizontal prediction
 test_pred_h<-ets_h(train,test,batch=7,freq=48,dec=TRUE) # predict values
-save(data=test_pred_h,path=paste(exp_dir,'dec,ets_h.csv',sep='')) # write results
+save(data=test_pred_h,path=paste(exp_dir,'dec,ets.csv',sep='')) # write results
 
 # vertical predictions
-test_pred_v<-ets_v(train,test,batch=7,freq=7,,dec=TRUE) # predict values
-save(data=test_pred_v,path=paste(exp_dir,'dec,ets_v.csv',sep='')) # write results
+test_pred_v<-ets_v(train,test,batch=7,freq=7,dec=TRUE) # predict values
+save(data=test_pred_v,path=paste(exp_dir,'ha,dec,ets.csv',sep='')) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_hw<-ets_h(train,test,batch=1,freq=48,dec=TRUE) # horizontal predictions for this day
-  save(data=test_pred_hw,path=paste(exp_dir,'dec,ets_h_',i,'.csv',sep='')) # write results
+  save(data=test_pred_hw,path=paste(exp_dir,'dec,ets_',i,'.csv',sep='')) # write results
 }
 
 # vertical predictions for each day separately
@@ -144,7 +144,7 @@ for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_vw<-ets_v(train,test,batch=1,freq=52,dec=TRUE) # horizontal predictions for this day
-  save(data=test_pred_vw,path=paste(exp_dir,'dec,ets_v_',i,'.csv',sep='')) # write results
+  save(data=test_pred_vw,path=paste(exp_dir,'ha,dec,ets_',i,'.csv',sep='')) # write results
 }
 
 
@@ -158,18 +158,18 @@ test<-load(path=paste(data_dir,'test.csv', sep=''),index='date') # load test set
 
 # horizontal prediction
 test_pred_h<-ets_h(train,test,batch=7,freq=48,box_cox = TRUE,dec=TRUE) # predict values
-save(data=test_pred_h,path=paste(exp_dir,'dec,bc,ets_h.csv',sep='')) # write results
+save(data=test_pred_h,path=paste(exp_dir,'dec,bc,ets.csv',sep='')) # write results
 
 # vertical predictions
 test_pred_v<-ets_v(train,test,batch=7,freq=7,box_cox = TRUE,dec=TRUE) # predict values
-save(data=test_pred_v,path=paste(exp_dir,'dec,bc,ets_v.csv',sep='')) # write results
+save(data=test_pred_v,path=paste(exp_dir,'ha,dec,bc,ets.csv',sep='')) # write results
 
 # horizontal predictions for each day separately
 for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_hw<-ets_h(train,test,batch=1,freq=48,box_cox = TRUE,dec=TRUE) # horizontal predictions for this day
-  save(data=test_pred_hw,path=paste(exp_dir,'dec,bc,ets_h_',i,'.csv',sep='')) # write results
+  save(data=test_pred_hw,path=paste(exp_dir,'dec,bc,ets_',i,'.csv',sep='')) # write results
 }
 
 # vertical predictions for each day separately
@@ -177,5 +177,5 @@ for (i in 0:6){ # for each day
   train<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train set
   test<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test set
   test_pred_vw<-ets_v(train,test,batch=1,freq=52,box_cox = TRUE,dec=TRUE) # horizontal predictions for this day
-  save(data=test_pred_vw,path=paste(exp_dir,'dec,bc,ets_v_',i,'.csv',sep='')) # write results
+  save(data=test_pred_vw,path=paste(exp_dir,'ha,dec,bc,ets_',i,'.csv',sep='')) # write results
 }

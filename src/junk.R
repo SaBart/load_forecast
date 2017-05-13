@@ -491,3 +491,25 @@ save(data=test_pred_hfw,path=paste(exp_dir,'dec,bc,fwreg,arima_h.csv',sep='')) #
 # vertical predictions
 test_pred_vfw<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),f_K=dec_bc_K_v,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=TRUE,box_cox = TRUE) # vertical prediction
 save(data=test_pred_vfw,path=paste(exp_dir,'dec,bc,fwreg,arima_v.csv',sep='')) # write results
+
+for (i in 0:5)
+  data<-load(paste(wip_dir,'out_',i,'.csv', sep='')) # load train set
+data<-ts(data,frequency=1440)
+print(paste(i,'structTs',sep=''))
+structTs<-na.kalman(x=data,model='StructTS')
+print(paste(i,'arima',sep=''))
+arima<-na.kalman(x=data,model='auto.arima',trace=TRUE)
+print(paste(i,'seadec_structTS',sep=''))
+seadec_structTS<-na.seadec(x=data,algorithm='kalman',model='StructTS')
+print(paste(i,'seadec_arima',sep=''))
+seadec_arima<-na.seadec(x=data,algorithm='kalman',model='auto.arima',trace=TRUE)
+print(paste(i,'seasplit_structTS',sep=''))
+seasplit_structTS=na.seaaplit(x=data,algorithm='kalman',model='StructTS')
+print(paste(i,'seasplit_arima',sep=''))
+seasplit_arima<-na.seasplit(x=data,algorithm='kalman',model='auto.arima',trace=TRUE)
+save(data=structTS,path=paste(exp_dir,i,'_strucTS.csv',sep='')) # write results
+save(data=arima,path=paste(exp_dir,i,'_arima.csv',sep='')) # write results
+save(data=seadec_structTS,path=paste(exp_dir,i,'_seadec_strucTS.csv',sep='')) # write results
+save(data=seadec_arima,path=paste(exp_dir,i,'_seadec_arima.csv',sep='')) # write results
+save(data=seasplit_structTS,path=paste(exp_dir,i,'_seasplit_strucTS.csv',sep='')) # write results
+save(data=seasplit_arima,path=paste(exp_dir,i,'_seasplit_arima.csv',sep='')) # write results

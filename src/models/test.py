@@ -877,3 +877,63 @@ img_dir='C:/Users/SABA/Google Drive/mtsg/text/img/'
 
 f.p2l(img_dir + 'test')
 	
+	mu, sigma = 100, 15
+x = mu + sigma*np.random.randn(10000)
+
+# the histogram of the data
+n, bins, patches = plt.hist(x, 50, normed=1, facecolor='green', alpha=0.75)
+
+
+plt.xlabel('Smarts')
+plt.ylabel('Probability')
+plt.title(r'$\mathrm{Histogram\ of\ IQ:}\ \mu=100,\ \sigma=15$')
+plt.axis([40, 160, 0, 0.03])
+plt.grid(True)
+
+plt.show()
+
+# plot heatmap of missing values
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.cut(data=data,freq=1440) # remove incomplete first and last days
+data=pd.DataFrame(data)
+data=data.isnull()
+data['time']=data.index.time
+data['date']=data.index.date
+data=pd.pivot_table(data, values='load' , index='date', columns='time',dropna=False)
+cols = ('dodgerblue','aliceblue')
+cmap = LinearSegmentedColormap.from_list('Custom', cols, len(cols))
+
+sns.set(font_scale=1.75)
+f,ax=plt.subplots() # get axis handle
+ax=sns.heatmap(data,cmap=cmap) # produce heatmap
+ax.set_xticks([i*240 for i in range(7)])
+ax.set_xticklabels(['00:00','04:00','08:00','12:00','16:00','20:00','24:00'],fontsize=16)
+ax.set_yticks([i*240 for i in range(7)])
+ax.set_yticklabels([1440,1200,960,720,480,240,0],fontsize=16)
+plt.yticks(rotation=0)
+ax.set_xlabel('Time',fontsize=18)
+ax.set_ylabel('Day',fontsize=18)
+col_bar = ax.collections[0].colorbar
+col_bar.set_ticks([0.25, 0.75])
+col_bar.set_ticklabels(['data','outage'])
+
+
+
+ax.set_frame_on(True)
+col_bar.set_edgecolor('k')
+
+
+
+
+import seaborn as sns
+sns.set_style("ticks")
+
+
+
+# plot bars  for missing values
+def nan_bar(data):
+	nans=data.isnull().sum(axis=1) # count NaNs row-wise
+	nans.plot(kind='bar') # plot histogram of missing values,
+	return
+

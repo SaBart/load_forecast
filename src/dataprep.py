@@ -84,7 +84,7 @@ def load_concat_w(paths,idx='timestamp',cols=['tempm','hum','pressurem'],dates=F
 
 # combines minute time intervals into half-hour time intervals
 def resample(data,freq=1440):
-	data=cut(data,freq=freq) # remove incomplete first and last days
+	data=cut(data=data,freq=freq) # remove incomplete first and last days
 	data=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
 	values=data.name # get the series name
 	data=data.to_frame() # convert to dataframe
@@ -107,18 +107,19 @@ def s2d(data):
 	
 # remove incomplete first and last days
 def cut(data,freq=1440):
-	counts=data.fillna(value=0).resample('1D').count() # first replace nans to include in count then count
+	counts=data.isnull().resample(rule='1D',closed='left',label='left').count() # first replace nans to include in count then count
 	days=counts[counts>=freq].index # complete days
 	data=data[days.min().strftime('%Y-%m-%d'):days.max().strftime('%Y-%m-%d')] # preserve only complete days
 	return data
 
 # shifts data for time series forcasting
-def shift(data,n_shifts=1,shift=1,target_label='targets'):
+def shift(data,lags=[1],tar_lab='targets'):
 	data_shifted={} # lagged dataframes for merging
-	for i in range(n_shifts+1): # for each time step
-		label=target_label # label for target values
+	lags=[0]+lags # zero lag for target values
+	for i in lags: # for each lag
+		label=tar_lab # label for target values
 		if i!=0:label='t-{}'.format(i) # labels for patterns
-		data_shifted[label]=data.shift(i*shift) # add lagged dataframe
+		data_shifted[label]=data.shift(i) # add lagged dataframe
 	res=pd.concat(data_shifted.values(),axis='columns',keys=data_shifted.keys()) # merge lagged dataframes
 	return res.dropna() # TODO: handling missing values
 

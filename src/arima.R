@@ -1,16 +1,17 @@
 library(forecast)
 source('dataprep.R')
 
+
 f_ords<-function(train,freq=48,freqs,ords,dec=FALSE,bc=FALSE){
   train<-c(t(train)) # flatten train set
   aicc_best<-Inf # best aicc statistic
   param_best<-NULL # best parameters
-  bc_lambda<-if (bc) BoxCox.lambda(train,method='guerrero') else NULL # estimate lambda for Box-Cox transformation
+  bc_lambda<-if (bc) BoxCox.lambda(train,method='loglik') else NULL # estimate lambda for Box-Cox transformation
   for (i in 1:nrow(ords)){ # for each combination of orders
     ord<-unlist(ords[i,]) # combination of orders
     xregs_train<-fourier(msts(train,seasonal.periods=freqs),K=ord) # fourier terms for particular multi-seasonal time series
     if (dec) { # if decompose first
-      model<-stlm(ts(train,frequency = freq),method='arima',xreg=xregs_train,s.window='periodic',robust=TRUE,trace=TRUE,lambda = bc_lambda)$model  # find best arima model after decomposition      
+      model<-stlm(ts(train,frequency = freq),method='arima',xreg=xregs_train,s.window=7,robust=TRUE,trace=TRUE,lambda = bc_lambda)$model  # find best arima model after decomposition      
     }
     else{ # dont decompose
       model<-auto.arima(ts(train,frequency = freq),xreg=xregs_train,seasonal=FALSE,trace=TRUE,lambda = bc_lambda) # find best arima model 
@@ -30,10 +31,13 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
   if (is.null(ord)){ # not considering multiple seasonalities
     fxregs_train<-NULL
     fxregs_test<-NULL
+    seasonal<-TRUE
   }
   else { # considering multiple seasonalities
-    fxregs_train<-fourier(msts(train,seasonal.periods=freqs),K=ord)
-    fxregs_test<-fourier(msts(test,seasonal.periods=freqs),K=ord)
+    fxregs<-fourier(msts(c(train,test),seasonal.periods=freqs),K=ord)
+    fxregs_train<-fxregs[1:length(train),]
+    fxregs_test<-fxregs[1:length(test),]
+    seasonal<-FALSE
   }
   if (is.null(wxregs_train)|is.null(wxregs_test)) # not considering weather regressors
   {
@@ -44,10 +48,13 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
     wxregs_train<-do.call(cbind,lapply(wxregs_train,function(x) c(t(x)))) # flatten and combine weather regressors for train set
     wxregs_test<-do.call(cbind,lapply(wxregs_test,function(x) c(t(x)))) # flatten and combine weather regressors for test set
   }
+  #train<-c(t(train))[1:(48*28*2)]
+  #wxregs_train<-wxregs_train[1:(48*28*2),]
   xregs_train<-cbind(fxregs_train,wxregs_train) # combine fourier & weather into one matrix for train set
   xregs_test<-cbind(fxregs_test,wxregs_test) # combine fourier & weather into one matrix for test set
   xregs=NULL # default covariates
   xregs_pred=NULL # default covariates for predictions
+  model<-NULL
   for (i in seq(0,length(test)-hor,hor)){ # for each window of observations in test set
     train_ts<-ts(c(train,test[seq_len(i)]),frequency=freq) # add new observations from test set to the current train set
     if (!is.null(xregs_train)&!is.null(xregs_test)){ # if considering external regressors
@@ -55,15 +62,14 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
       xregs_pred<-matrix(xregs_test[i+seq_len(hor),],ncol=ncol(xregs_test)) # add covariates for predictions
     }
     if (i%%(batch*hor)==0){ # if its time to retrain
-      model<-NULL
       bc_lambda<-if (bc) BoxCox.lambda(train,method='guerrero') else NULL # estimate lambda for Box-Cox transformation
       if (dec){ # if decomposition is to be applied
-        model<-stlm(train_ts,method='arima',xreg=xregs,s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE,trace=TRUE) # find best model on the current train set
+        model<-stlm(train_ts,method='arima',xreg=xregs,s.window=7,robust=TRUE,lambda=bc_lambda,biasadj = FALSE,trace=TRUE) # find best model on the current train set
       }
       else { # no decomposition
-        model<-auto.arima(train_ts,xreg=xregs,lambda=bc_lambda,biasadj = FALSE,trace = TRUE) # find best model on the current train set
+        model<-auto.arima(train_ts,xreg=xregs,seasonal=FALSE,lambda=bc_lambda,biasadj = FALSE,trace = TRUE) # find best model on the current train set
       }
-      cat(i%/%(batch*hor),'\n') # print number of retrainings and the type of model
+      cat('training: ',i%/%(batch*hor),'\n') # print number of retrainings and the type of model
     }
     else{ # it is not the time to retrain
       if (dec){
@@ -72,7 +78,7 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
           model<-stlm(train_ts,model=model$model,modelfunction=function(x, ...) {Arima(x, xreg=xregs, ...)},s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE) # do not train, use current model with new observations  
         }
         else {
-          model<-stlm(train_ts,model=model,s.window='periodic',robust=TRUE,lambda=bc_lambda,biasadj = FALSE) # do not train, use current model with new observations  
+          model<-stlm(train_ts,model=model,s.window=7,robust=TRUE,lambda=bc_lambda,biasadj = FALSE) # do not train, use current model with new observations  
         }
       }
       else
@@ -107,6 +113,7 @@ arima_v<-function(train,test,batch=7,freq=7,ord=NULL,freqs=NULL,wxregs_train=NUL
       wxregs_test_col<-lapply(wxregs_test,function(x) as.data.frame(`[[`(x, col))) # extract a particular column from each member of list of covariates  
     }
     test_pred[[col]]<-arima(train_col,test_col,hor=1,batch=batch,freq=freq,freqs=freqs,ord=ord,wxregs_train=wxregs_train_col,wxregs_test=wxregs_test_col,dec=dec,bc=bc)[[col]] # predictions
+    cat('time: ',col,'\n')
   }
   return(test_pred)
 }
@@ -133,8 +140,11 @@ for (col in names(train)){
   ord_v[[col]]<-f_ords(train_col,freq=365.25,freqs=c(7),ords=ords) # find best fourier coefficients  
 }
 
-data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/data/' # directory containing data
-exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/nocb/arima/results/' # directory for the results of experiments
+
+# EXPERIMENTS
+
+data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/experiments/data/' # directory containing data
+exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory for the results of experiments
 
 train<-load(paste(data_dir,'train.csv', sep='')) # load train set
 test<-load(paste(data_dir,'test.csv', sep='')) # load test set
@@ -158,79 +168,78 @@ params<-data.frame(row.names=c('np,','bc,','dec,','dec,bc,'),'bc'=c(FALSE,TRUE,F
 
 for (name in rownames(params)){
   
-  name<-'bc,'
+  name<-''
   bc<-params[name,]$bc
   dec<-params[name,]$dec
 
   # NO EXTERNAL REGRESSORS
   
-  # horizontal predictions
+  # 
   test_pred_h<-arima_h(train,test,batch=28,freq=48,dec=dec,bc = bc) # predict values
-  save(data=test_pred_h,path=paste(exp_dir,name,'arima_h','.csv',sep='')) # write results
+  save(data=test_pred_h,path=paste(exp_dir,'arima/',name,'arima','.csv',sep='')) # write results
   
-  # vertical predictions
+  # ha
   test_pred_v<-arima_v(train,test,batch=28,freq=7,dec=dec,bc = bc) # predict values
-  save(data=test_pred_v,path=paste(exp_dir,name,'arima_v','.csv',sep='')) # write results
+  save(data=test_pred_v,path=paste(exp_dir,'arima/','ha,',name,'arima','.csv',sep='')) # write results
   
-  # horizontal predictions for each day separately
+  # wa
   for (i in 0:6){ # for each day
     day<-paste('D',i,sep='') # index name
     test_pred_hwi<-arima_h(train_day[[day]],test_day[[day]],batch=4,freq=48,dec=dec,bc = bc) # horizontal predictions for this day
-    save(data=test_pred_hwi,path=paste(exp_dir,name,'arima_h_',i,'.csv',sep='')) # write results
+    save(data=test_pred_hwi,path=paste(exp_dir,'arima/',name,'arima_',i,'.csv',sep='')) # write results
   }
   
-  # vertical predictions for each day separately
+  # wa & ha
   for (i in 0:6){ # for each day
     day<-paste('D',i,sep='') # index name
     test_pred_vwi<-arima_v(train_day[[day]],test_day[[day]],batch=4,freq=52,dec=dec,bc = bc) # vertical predictions for this day
-    save(data=test_pred_vwi,path=paste(exp_dir,name,'arima_v_',i,'.csv',sep='')) # write results
+    save(data=test_pred_vwi,path=paste(exp_dir,'arima/','ha,',name,'arima_',i,'.csv',sep='')) # write results
   }
   
   #  FOURIER EXTERNAL REGRESSORS
 
-  # horizontal predictions
-  test_pred_hf<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=c(5,10),dec=dec,bc = bc) # horizontal prediction
-  save(data=test_pred_hf,path=paste(exp_dir,name,'fregs,arima_h.csv',sep='')) # write results
+  # 
+  test_pred_hf<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=c(3,5),dec=dec,bc = bc) # horizontal prediction
+  save(data=test_pred_hf,path=paste(exp_dir,'arimax/',name,'fregs,arimax.csv',sep='')) # write results
   
-  # vertical predictions
+  # ha
   test_pred_vf<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=3,dec=dec,bc = bc) # horizontal prediction
-  save(data=test_pred_vf,path=paste(exp_dir,name,'fregs,arima_v.csv',sep='')) # write results
+  save(data=test_pred_vf,path=paste(exp_dir,'arimax/','ha,',name,'fregs,arimax.csv',sep='')) # write results
   
   
   # WEATHER EXTERNAL REGRESSORS
   
-  # horizontal predictions
+  # 
   test_pred_hw<-arima_h(train,test,batch=28,freq=48,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # horizontal prediction
-  save(data=test_pred_hw,path=paste(exp_dir,name,'wregs,arima_h.csv',sep='')) # write results
+  save(data=test_pred_hw,path=paste(exp_dir,'arimax/',name,'wregs,arimax.csv',sep='')) # write results
   
-  # vertical predictions
+  # ha
   test_pred_vw<-arima_v(train,test,batch=28,freq=7,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # vertical prediction
-  save(data=test_pred_vw,path=paste(exp_dir,name,'wregs,arima_v.csv',sep='')) # write results
+  save(data=test_pred_vw,path=paste(exp_dir,'arimax/','ha,',name,'wregs,arimax.csv',sep='')) # write results
   
-  # horizontal predictions for each day separately
+  # wa
   for (i in 0:6){ # for each day
     day<-paste('D',i,sep='') # index name
     test_pred_hwi<-arima_h(train_day[[day]],test_day[[day]],batch=4,freq=48,wxregs_train=wxregs_train_day[[day]],wxregs_test=wxregs_test_day[[day]],dec=dec,bc = bc) # horizontal predictions for this day
-    save(data=test_pred_hwi,path=paste(exp_dir,name,'wregs,arima_h_',i,'.csv',sep='')) # write results
+    save(data=test_pred_hwi,path=paste(exp_dir,'arimax/',name,'wregs,arimax_',i,'.csv',sep='')) # write results
   }
   
-  # vertical predictions for each day separately
+  # wa & ha
   for (i in 0:6){ # for each day
     day<-paste('D',i,sep='') # index name
     test_pred_vwi<-arima_v(train_day[[day]],test_day[[day]],batch=4,freq=52,wxregs_train=wxregs_train_day[[day]],wxregs_test=wxregs_test_day[[day]],dec=dec,bc = bc) # horizontal predictions for this day
-    save(data=test_pred_vwi,path=paste(exp_dir,name,'wregs,arima_v_',i,'.csv',sep='')) # write results
+    save(data=test_pred_vwi,path=paste(exp_dir,'arimax/','ha,',name,'wregs,arimax_',i,'.csv',sep='')) # write results
   }
   
   
   # FOURIER & WEATHER EXTERNAL REGRESSORS
   
-  # horizontal predictions
-  test_pred_hfw<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=c(5,10),wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # horizontal prediction
-  save(data=test_pred_hfw,path=paste(exp_dir,name,'fwregs,arima_h.csv',sep='')) # write results
+  # 
+  test_pred_hfw<-arima_h(train,test,batch=28,freq=365.25*48,freqs=c(48,7*48),ord=c(3,5),wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # horizontal prediction
+  save(data=test_pred_hfw,path=paste(exp_dir,'arimax/',name,'fregs,wregs,arimax.csv',sep='')) # write results
   
-  # vertical predictions
+  # ha
   test_pred_vfw<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=3,wxregs_train=wxregs_train,wxregs_test=wxregs_test,dec=dec,bc = bc) # vertical prediction
-  save(data=test_pred_vfw,path=paste(exp_dir,name,'fwregs,arima_v.csv',sep='')) # write results
+  save(data=test_pred_vfw,path=paste(exp_dir,'arimax/','ha,',name,'fregs,wregs,arimax.csv',sep='')) # write results
 }
-
 

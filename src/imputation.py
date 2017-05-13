@@ -47,22 +47,27 @@ def add_out(data,dist):
 		if data_out.isnull().sum()>0: break
 	return data_out
 	
-# returns the distribution outage (consecutive nans) lengths
-def out_dist(data):
-	out_cnts={} # dictionry of outage counts
+# count outage lengths
+def out_len(data):
+	out_len={} # dictionary of outage counts
 	out=0 # length of outage
 	for i in range(len(data)):
 		if data.iloc[i]!=data.iloc[i]: # if nan
 			out+=1 # increment current number of consecutive nans
 		else: 
-			if out in out_cnts: out_cnts[out] += 1 # increment dictionary entry
-			else: out_cnts[out] = 1 # new entry in dictionary
+			if out in out_len: out_len[out] += 1 # increment dictionary entry
+			else: out_len[out] = 1 # new entry in dictionary
 			out=0 # reset the number of consecutive nans
-	if out in out_cnts: out_cnts[out] += 1 # increment dictionary entry
-	else: out_cnts[out] = 1 # new entry in dictionary
-	out_cnt=sum(out_cnts.values()) # total number of outages (zero length included)
+	if out in out_len: out_len[out] += 1 # increment dictionary entry
+	else: out_len[out] = 1 # new entry in dictionary
+	return out_len
+	
+# returns the distribution outage (consecutive nans) lengths
+def out_dist(data):
+	out_len=out_len(data)
+	out_cnt=sum(out_len.values()) # total number of outages (zero length included)
 	out_dist={} # dictionary for outage distribution
-	for olen,ocnt in out_cnts.items(): # for each entry in outage counts
+	for olen,ocnt in out_len.items(): # for each entry in outage counts
 		out_dist[olen/len(data)]=ocnt/out_cnt # transform key and value into fractions
 	return out_dist
 
