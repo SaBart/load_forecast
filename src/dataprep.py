@@ -86,12 +86,7 @@ def load_concat_w(paths,idx='timestamp',cols=['tempm','hum','pressurem'],dates=F
 def resample(data,freq=1440):
 	data=cut(data=data,freq=freq) # remove incomplete first and last days
 	data=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
-	values=data.name # get the series name
-	data=data.to_frame() # convert to dataframe
-	data['date']=pd.to_datetime(data.index.date) # create date column from index
-	data['time']=data.index.strftime('%H%M') # create time column from index
-	data=pd.pivot_table(data=data,index='date',columns='time',values=values) # pivot dataframe so that dates are index and times are columns
-	return data
+	return s2d(data)
 
 # flattens data, converts columns into a multiindex level
 def d2s(data):
@@ -102,7 +97,12 @@ def d2s(data):
 	
 # invert d2s operation
 def s2d(data):
-	if not isinstance(data, pd.DataFrame): data=data.unstack() # if not DataFrame (not flat) then unflatten
+	if not isinstance(data, pd.DataFrame): # if not DataFrame (not flat) then unflatten
+		values=data.name # get the series name
+		data=data.to_frame() # convert series to dataframe
+		data['date']=pd.to_datetime(data.index.date) # create date column from index
+		data['time']=data.index.strftime('%H%M') # create time column from index
+		data=pd.pivot_table(data=data,index='date',columns='time',values=values) # pivot dataframe so that dates are index and times are columns
 	return data
 	
 # remove incomplete first and last days
@@ -113,11 +113,11 @@ def cut(data,freq=1440):
 	return data
 
 # shifts data for time series forcasting
-def shift(data,lags=[1],tar_lab='targets'):
+def add_lags(data,lags=[1],nolag='targets'):
 	data_shifted={} # lagged dataframes for merging
 	lags=[0]+lags # zero lag for target values
 	for i in lags: # for each lag
-		label=tar_lab # label for target values
+		label=nolag # label for target values
 		if i!=0:label='t-{}'.format(i) # labels for patterns
 		data_shifted[label]=data.shift(i) # add lagged dataframe
 	res=pd.concat(data_shifted.values(),axis='columns',keys=data_shifted.keys()) # merge lagged dataframes
@@ -129,9 +129,9 @@ def order(data):
 	return data
 	
 # split data into patterns & targets
-def X_Y(data,target_label='targets'):
-	X=data.select(lambda x:x[0] not in [target_label], axis=1) # everything not labelled "target" is a pattern, [0] refers to the level of multi-index
-	Y=data[target_label] # targets
+def X_Y(data,Y_lab='targets'):
+	X=data.select(lambda x:x[0] not in [Y_lab], axis=1) # everything not labelled "target" is a pattern, [0] refers to the level of multi-index
+	Y=data[Y_lab] # targets
 	return X, Y
 
 # split data into train & test sets
@@ -141,7 +141,7 @@ def train_test(data, base=7,test_size=0.255): # in time series analysis order of
 	return train,test
 
 # returns number n that the (total-n) is rounded to base and (total-n)/total>test_size  
-def round_rem(total,base=7,test_size=0.25):
+def round_rem(total,base=7,test_size=0.255):
 	return total-round_u(total-(1-test_size)*total,base) if test_size>0 else total # calculate the index that splits dataset into train, test
 
 # split data into n datasets (according to weekdays)
@@ -165,18 +165,63 @@ def round_u(x,base=7):
 	return int(result)
 
 # construct training & testing sets for time series cross validation
-def tscv(total,base=7,test_size=0.25,batch=28):
-	len_train=round_rem(total=total,base=base,test_size=test_size) # calculate number of training samples
-	tscv_iter=[(np.arange(i),i+np.arange(min(batch,total-i))) for i in range(len_train,total,batch)] # construct the iterator, a list of tuples, each containing train & test indices
-	return tscv_iter
+def tscv(data,test_size=369,batch=28):
+	len_train=len(data)-test_size # initial train size
+	tscv_iter=[(np.arange(i),i+np.arange(min(batch,len(data)-i))) for i in range(len_train,len(data),batch)] # construct the iterator, a list of tuples, each containing train & test indices
+	tscv=[(data[:max(train)+1],data[min(test):max(test)+1]) for train,test in tscv_iter] # construct train and test sets according to iterator
+	return tscv
 
-# standardise data
-def z_val(data):
+# get mean and std from data
+def mean_std(data):
 	data_flat=d2s(data) # flatten DataFrame into a Series
 	mean=data_flat.mean() # get mean
 	std=data_flat.std() # get std
-	return (data-mean)/std,mean,std
+	return mean,std
+
+# standardise data
+def de_std(data,mean,std):
+	return (data-mean)/std
 
 # invert standardisation
-def z_inv(data,mean,std):
+def re_std(data,mean,std):
 	return (data*std)+mean
+
+# subtract average
+def de_mean(data,avg_days=None):
+	if avg_days is None:
+		avg_days=data.groupby(by=data.index.weekday).mean() # average across weekdays
+	#data=data.groupby(by=data.index.weekday).transform(lambda x: x-x.mean()) # subtract average days
+	data=data.groupby(by=data.index.weekday).apply(lambda x: x-avg_days.loc[x.name])
+	return data,avg_days
+	
+# add average
+def re_mean(data,avg_days):	
+	return data.groupby(by=data.index.weekday).apply(lambda x: x+avg_days.loc[x.name])
+	
+
+def de_seas(data,seas=None,window=7):
+	if seas is None:
+		pandas2ri.activate() # activate connection
+		stats=importr('stats') # forecast package
+		ts=ro.r.ts # R time series
+		data_ts=ts(d2s(data),frequency=48) # add a new day from test set to the current train set
+		dec=stats.stl(data_ts,s_window=7,robust=True).rx2('time.series') # decompose time series
+		#trend=pandas2ri.ri2py(dec.rx(True,'trend')) # convert R object to pandas dataframe
+		seas=pd.Series(pandas2ri.ri2py(dec.rx(True,'seasonal')),index=d2s(data).index) # convert R object to pandas series
+		seas.name='' # remove name
+		seas=s2d(seas) # convert series do dataframe
+		#rem=pandas2ri.ri2py(dec.rx(True,'remainder')) # convert R object to pandas dataframe
+		data=data-seas # de-seasonalize data
+		pandas2ri.deactivate() # deactivate connection
+	else:
+		s=seas.tail(len(data)) # get seasonality of previous batch
+		s.index=data.index # change index to alogn dataframes
+		data=data-s # de-seasonalize data
+	return data,seas
+	
+def re_seas(data,seas):
+	s=seas.tail(len(data)) # get seasonality of previous batch
+	s.index=data.index	# change index to alogn dataframes
+	return data+s # re-seasonalize data
+	
+	

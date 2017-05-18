@@ -19,6 +19,8 @@ from dataprep import resample
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from datetime import datetime
+from statsmodels.tsa.stattools import acf,pacf
+from statsmodels.graphics.tsaplots import plot_acf,plot_pacf
 
 
 # CONSTANTS
@@ -244,14 +246,83 @@ ax[6].set_xticklabels([pd.to_datetime(time,format='%H%M').strftime('%H:%M') for 
 ax[6].set_xlabel('Time',fontsize=18,labelpad=8)
 f.text(0.07, 0.5, 'Load (kW)', ha='center', va='center', rotation='vertical',fontsize=18)
 
+# acf
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+
+f,ax=plt.subplots()
+plot_acf(dp.d2s(data),lags=range(9*48+9),use_vlines=True,alpha=None,ax=ax)
+ax.tick_params(labelsize=16)
+ax.set_xticks([i*48 for i in range(0,10)])
+ax.set_xticklabels(range(0,10))
+ax.set_xlabel('Lag (days)',fontsize=18)
+ax.set_ylabel('Autocorrelation',fontsize=18)
+ax.set_title('')
+
+# pacf 
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+
+f,ax=plt.subplots()
+plot_pacf(dp.d2s(data),lags=range(9*48+9),use_vlines=True,alpha=None,ax=ax)
+ax.tick_params(labelsize=16)
+ax.set_xticks([i*48 for i in range(0,10)])
+ax.set_xticklabels(range(0,10))
+ax.set_xlabel('Lag (days)',fontsize=18)
+ax.set_ylabel('Autocorrelation',fontsize=18)
+ax.set_title('')
+
+# acf all
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+
+f,ax=plt.subplots()
+plot_acf(dp.d2s(data),lags=[i*48*7 for i in range(0,205+1)],use_vlines=True,alpha=None,ax=ax)
+ax.tick_params(labelsize=16)
+ax.set_xticks([i*48*7*52 for i in range(0,5)])
+ax.set_xticklabels(range(0,5))
+ax.set_xlabel('Lags (years)',fontsize=18)
+ax.set_ylabel('Autocorrelation',fontsize=18)
+ax.set_title('')
+
+# pacf all
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+
+f,ax=plt.subplots()
+plot_pacf(dp.d2s(data),lags=[i*48*7 for i in range(0,205+1)],use_vlines=True,alpha=None,ax=ax)
+ax.tick_params(labelsize=16)
+ax.set_xticks([i*48*7*52 for i in range(0,5)])
+ax.set_xticklabels(range(0,5))
+ax.set_xlabel('Lags (years)',fontsize=18)
+ax.set_ylabel('Autocorrelation',fontsize=18)
+ax.set_title('')
+
+# histogram
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
+data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+data=dp.d2s(data) # flatten
+
+f,ax=plt.subplots()
+bins=np.arange(0.0, 5.05, 0.1)
+data.hist(ax=ax,bins=bins,grid=False,edgecolor='k',xrot=90)
+ax.tick_params(labelsize=16)
+ax.set_xticks(bins)
+ax.set_xlabel('Load (kW)',fontsize=18)
+ax.set_ylabel('Number of half-hour intervals',fontsize=18)
+
 # EXPERIMENTAL RESULTS
 
-shift=48*7# the shift that performed best
-measures={'SRMSE':pf.srmse,'MASE':partial(pf.mase,shift=shift),'SMAPE':pf.smape,'SMAE':pf.smae,} # performance to consider
+measures={'SRMSE':pf.srmse,'MASE':partial(pf.mase,shift=48*7),'SMAPE':pf.smape,'SMAE':pf.smae,} # performance to consider
 
 # table for latex
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/arimax/' # directory containing results of experiments
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/arima/' # directory containing results of experiments
 true=dp.load(data_dir+'experiments/data/test.csv',idx='date',dates=True)
 results=pf.ev_dir(exp_dir, true, measures=measures) # evaluate performance of all results in directory
 results=results.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])

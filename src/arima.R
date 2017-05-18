@@ -67,7 +67,7 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
         model<-stlm(train_ts,method='arima',xreg=xregs,s.window=7,robust=TRUE,lambda=bc_lambda,biasadj = FALSE,trace=TRUE) # find best model on the current train set
       }
       else { # no decomposition
-        model<-auto.arima(train_ts,xreg=xregs,seasonal=FALSE,lambda=bc_lambda,biasadj = FALSE,trace = TRUE) # find best model on the current train set
+        model<-auto.arima(train_ts,xreg=xregs,seasonal=seasonal,lambda=bc_lambda,biasadj = FALSE,trace = TRUE) # find best model on the current train set
       }
       cat('training: ',i%/%(batch*hor),'\n') # print number of retrainings and the type of model
     }
@@ -179,7 +179,7 @@ for (name in rownames(params)){
   save(data=test_pred_h,path=paste(exp_dir,'arima/',name,'arima','.csv',sep='')) # write results
   
   # ha
-  test_pred_v<-arima_v(train,test,batch=28,freq=7,dec=dec,bc = bc) # predict values
+  test_pred_v<-arima_v(train,test,batch=7,freq=28,dec=dec,bc = bc) # predict values
   save(data=test_pred_v,path=paste(exp_dir,'arima/','ha,',name,'arima','.csv',sep='')) # write results
   
   # wa
@@ -203,7 +203,7 @@ for (name in rownames(params)){
   save(data=test_pred_hf,path=paste(exp_dir,'arimax/',name,'fregs,arimax.csv',sep='')) # write results
   
   # ha
-  test_pred_vf<-arima_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=3,dec=dec,bc = bc) # horizontal prediction
+  test_pred_vf<-arima_v(train,test,batch=7,freq=365.25,freqs=c(7),ord=3,dec=dec,bc = bc) # horizontal prediction
   save(data=test_pred_vf,path=paste(exp_dir,'arimax/','ha,',name,'fregs,arimax.csv',sep='')) # write results
   
   
