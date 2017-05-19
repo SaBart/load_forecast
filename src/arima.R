@@ -62,7 +62,7 @@ arima<-function(train,test,hor=1,batch=7,freq=48,freqs=NULL,ord=NULL,wxregs_trai
       xregs_pred<-matrix(xregs_test[i+seq_len(hor),],ncol=ncol(xregs_test)) # add covariates for predictions
     }
     if (i%%(batch*hor)==0){ # if its time to retrain
-      bc_lambda<-if (bc) BoxCox.lambda(train,method='guerrero') else NULL # estimate lambda for Box-Cox transformation
+      bc_lambda<-if (bc) BoxCox.lambda(train,method='loglik') else NULL # estimate lambda for Box-Cox transformation
       if (dec){ # if decomposition is to be applied
         model<-stlm(train_ts,method='arima',xreg=xregs,s.window=7,robust=TRUE,lambda=bc_lambda,biasadj = FALSE,trace=TRUE) # find best model on the current train set
       }
@@ -142,6 +142,7 @@ for (col in names(train)){
 
 
 # EXPERIMENTS
+data<-load(paste(data_dir,'data_imp.csv', sep='')) # load train set
 
 data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/experiments/data/' # directory containing data
 exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory for the results of experiments

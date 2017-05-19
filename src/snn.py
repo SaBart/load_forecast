@@ -41,7 +41,7 @@ def ev(train,test,model,prep=None,postp=None):
 	T_X,T_Y=dp.X_Y(data=T,Y_lab='targets')
 	V_X,V_Y=dp.X_Y(data=V,Y_lab='targets')
 	#model.fit(T_X.as_matrix(), T_Y.as_matrix(), nb_epoch=100, batch_size=28,verbose=2,validation_data=(V_X.as_matrix(),V_Y.as_matrix()),callbacks=[stop]) # train neural network
-	hist=model.fit(T_X.as_matrix(), T_Y.as_matrix(), nb_epoch=100, batch_size=1,verbose=2,validation_data=(V_X.as_matrix(),V_Y.as_matrix())) # train neural network
+	hist=model.fit(T_X.as_matrix(), T_Y.as_matrix(), nb_epoch=100000, batch_size=1,verbose=2,validation_data=(V_X.as_matrix(),V_Y.as_matrix())) # train neural network
 	V_pred=pd.DataFrame(model.predict(V_X.as_matrix()),index=V_Y.index,columns=V_Y.columns) # forecasts for the next batch
 	#V_pred=dp.z_inv(data=V_pred, mean=mean, std=std) # de-standardize data
 	V_pred=postp(V_pred,args) 
@@ -65,8 +65,8 @@ batch=28 # batch size for cross validation
 stop=kr.callbacks.EarlyStopping(monitor='val_loss', min_delta=0, patience=2, verbose=0, mode='auto') # end training when loss on validation starts decreasing
 model=nn(n_in=7*48, n_out=48, n_hid=100,dropout=0.5,hid_act='sigmoid',out_act='softmax',opt='rmsprop') # compile neural network
 
-perf,loss=train(train,test,model=model,prep=dp.de_seas,postp=dp.re_seas) # evaluate network
-
+perf,loss=ev(train,test,model=model,prep=dp.de_seas,postp=dp.re_seas) # evaluate network
+perf,loss=ev(train,test,model=model,prep=dp.de_mean,postp=dp.re_mean) # evaluate network
 
 	
 

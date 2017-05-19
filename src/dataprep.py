@@ -8,7 +8,6 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 from json import loads
 from urllib.request import urlopen
-from copy import deepcopy
 
 # loads load profiles
 def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
@@ -22,8 +21,6 @@ def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumpti
 
 # loads file
 def load(path,idx='date',cols=[],dates=False):
-	#if date_idx:data=pd.read_csv(path,header=0,sep=",", parse_dates=[idx],index_col=idx) # timestamp index
-	#else: data=pd.read_csv(path,header=0,sep=",",index_col=idx) # non timestamp index
 	data=pd.read_csv(path,header=0,sep=",",index_col=idx,parse_dates=dates) # non timestamp index
 	if cols:data=data[cols] # extract only wanted columns
 	return data

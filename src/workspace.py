@@ -18,7 +18,7 @@ from functools import partial
 from dataprep import resample
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
-from datetime import datetime
+import datetime
 from statsmodels.tsa.stattools import acf,pacf
 from statsmodels.graphics.tsaplots import plot_acf,plot_pacf
 
@@ -92,6 +92,8 @@ dp.save_dict(dic=dp.split(test,nsplits=7),path=temp_dir+'test_',idx='date') # sp
 
 # WEATHER DATA
 
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+
 # downloading weather in parts due to the limit on API requests (only 500 per day) 
 dates=pd.DatetimeIndex(data.index).strftime('%Y%m%d')[:400] # first part of dates
 dp.dl_save_w(dates, data_dir+'weather_1.csv') # save first part
@@ -107,10 +109,18 @@ paths=['weather_1.csv','weather_2.csv','weather_3.csv','weather_4.csv'] # files 
 weather=dp.load_concat_w([data_dir+path for path in paths],idx='timestamp',cols=['tempm','hum','pressurem'],dates=True) # join all parts of weather data
 weather.fillna(method='bfill',inplace=True) # fill missiong values (for column with maximum missin it is still only 0.045% of all)
 
+# save selected weather parameters
+temp=weather['tempm']
+hum=weather['hum']
+pres=weather['pressurem']
+dp.save(data=temp,path=data_dir+'temp.csv',idx='datetime')
+dp.save(data=hum,path=data_dir+'hum.csv',idx='datetime')
+dp.save(data=pres,path=data_dir+'pres.csv',idx='datetime')
+
 # splitting, aggregating & saving weather data
 temp_dir=data_dir+'experiments/data/' # where to save
 for col in weather: # for each column=weather parameter
-	data_w=dp.z_val(weather[col]) # standardize data
+	data_w=dp.de_mean(weather[col]) # standardize data
 	data_w=dp.resample(data=data_w, freq=48) # reshape to have time of day as columns
 	train_w,test_w=dp.train_test(data=data_w, test_size=0.255, base=7) # split into train & test sets
 	dp.save(data=train_w,path=temp_dir+col+'_train.csv',idx='date') # save train set
@@ -248,11 +258,10 @@ f.text(0.07, 0.5, 'Load (kW)', ha='center', va='center', rotation='vertical',fon
 
 # acf
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
-data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+data=dp.load(path=data_dir+'data_all.csv', idx='datetime',cols='load',dates=True) # load data
 
 f,ax=plt.subplots()
-plot_acf(dp.d2s(data),lags=range(9*48+9),use_vlines=True,alpha=None,ax=ax)
+plot_acf(data,lags=range(9*48+9),use_vlines=True,alpha=None,ax=ax)
 ax.tick_params(labelsize=16)
 ax.set_xticks([i*48 for i in range(0,10)])
 ax.set_xticklabels(range(0,10))
@@ -262,11 +271,10 @@ ax.set_title('')
 
 # pacf 
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
-data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+data=dp.load(path=data_dir+'data_all.csv', idx='datetime',cols='load',dates=True) # load data
 
 f,ax=plt.subplots()
-plot_pacf(dp.d2s(data),lags=range(9*48+9),use_vlines=True,alpha=None,ax=ax)
+plot_pacf(data,lags=range(9*48+9),use_vlines=True,alpha=None,ax=ax)
 ax.tick_params(labelsize=16)
 ax.set_xticks([i*48 for i in range(0,10)])
 ax.set_xticklabels(range(0,10))
@@ -276,11 +284,10 @@ ax.set_title('')
 
 # acf all
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
-data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+data=dp.load(path=data_dir+'data_all.csv', idx='datetime',cols='load',dates=True) # load data
 
 f,ax=plt.subplots()
-plot_acf(dp.d2s(data),lags=[i*48*7 for i in range(0,205+1)],use_vlines=True,alpha=None,ax=ax)
+plot_acf(data,lags=[i*48*7 for i in range(0,205+1)],use_vlines=True,alpha=None,ax=ax)
 ax.tick_params(labelsize=16)
 ax.set_xticks([i*48*7*52 for i in range(0,5)])
 ax.set_xticklabels(range(0,5))
@@ -290,11 +297,10 @@ ax.set_title('')
 
 # pacf all
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
-data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
+data=dp.load(path=data_dir+'data_all.csv', idx='datetime',cols='load',dates=True) # load data
 
 f,ax=plt.subplots()
-plot_pacf(dp.d2s(data),lags=[i*48*7 for i in range(0,205+1)],use_vlines=True,alpha=None,ax=ax)
+plot_pacf(data,lags=[i*48*7 for i in range(0,205+1)],use_vlines=True,alpha=None,ax=ax)
 ax.tick_params(labelsize=16)
 ax.set_xticks([i*48*7*52 for i in range(0,5)])
 ax.set_xticklabels(range(0,5))
@@ -302,19 +308,57 @@ ax.set_xlabel('Lags (years)',fontsize=18)
 ax.set_ylabel('Autocorrelation',fontsize=18)
 ax.set_title('')
 
+
 # histogram
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-data=dp.load(path=data_dir+'data_imp.csv', idx='datetime',cols='load',dates=True) # load data
-data=dp.resample(data,freq=1440) # aggregate minutes to half-hours
-data=dp.d2s(data) # flatten
+data=dp.load(path=data_dir+'data_all.csv', idx='datetime',cols='load',dates=True) # load data
 
 f,ax=plt.subplots()
-bins=np.arange(0.0, 5.05, 0.1)
-data.hist(ax=ax,bins=bins,grid=False,edgecolor='k',xrot=90)
+bins=np.arange(0.0, 5.15, 0.1)
+data.hist(ax=ax,bins=500,grid=False,edgecolor='k',xrot=90)
+ax.set_xlim(0,5.1)
 ax.tick_params(labelsize=16)
 ax.set_xticks(bins)
 ax.set_xlabel('Load (kW)',fontsize=18)
 ax.set_ylabel('Number of half-hour intervals',fontsize=18)
+
+# histogram BC
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+data=dp.load(path=data_dir+'data_bc.csv', idx='datetime',cols='load',dates=True) # load data
+
+f,ax=plt.subplots()
+bins=np.arange(-2.6, 2.05, 0.1)
+data.hist(ax=ax,bins=500,grid=False,edgecolor='k',xrot=90)
+ax.tick_params(labelsize=16)
+ax.set_xticks(bins)
+ax.set_xlabel('Load (Box-Cox transformed)',fontsize=18)
+ax.set_ylabel('Number of half-hour intervals',fontsize=18)
+
+
+# weather data
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
+temp=dp.load(path=data_dir+'temp.csv', idx='datetime', cols='temp', dates=True)
+hum=dp.load(path=data_dir+'hum.csv', idx='datetime', cols='hum', dates=True)
+pres=dp.load(path=data_dir+'pres.csv', idx='datetime', cols='pres', dates=True)
+
+f,ax=plt.subplots(nrows=3,ncols=1,sharex=True)
+temp.plot(ax=ax[0])
+hum.plot(ax=ax[1])
+pres.plot(ax=ax[2])
+ax[2].minorticks_off()
+#xlabels=[item.get_text()[:4] for item in ax[2].get_xticklabels()]
+#ax[2].set_xticklabels(xlabels)
+#ax[2].set_xticks([15*48+i*48*365 for i in range(0,4)])
+#ax[2].set_xticklabels(['Jan','Jan','Jan','Jan'],fontsize=16)
+for a in ax:a.tick_params(labelsize=16)
+ax[0].set_ylabel('Temperature ($^\circ$C)',fontsize=18)
+ax[1].set_ylabel('Humidity (%)',fontsize=18)
+ax[2].set_ylabel('Pressure (hPa)',fontsize=18)
+#for a in ax:a.set_ylabel('Load (kW)')
+tick_locs = [datetime.date(year=y,month=1,day=1) for y in [2007,2008,2009,2010]] +[ datetime.date(year=y,month=7,day=1) for y in [2007,2008,2009,2010]]
+tick_labels = map(lambda x: x.strftime('%b'), tick_locs)
+plt.xticks(tick_locs, tick_labels)
+plt.xlabel('Month',fontsize=18)
 
 # EXPERIMENTAL RESULTS
 
