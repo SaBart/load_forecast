@@ -9,18 +9,18 @@ import patsy
 import gc
 import rpy2.robjects as ro
 import time
+import datetime
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
-from sklearn.metrics import r2_score
-from tqdm import tqdm
 from importlib import reload
 from functools import partial
 from dataprep import resample
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
-import datetime
 from statsmodels.tsa.stattools import acf,pacf
 from statsmodels.graphics.tsaplots import plot_acf,plot_pacf
+from pandas.tools.plotting import lag_plot
+from collections import OrderedDict
 
 
 # CONSTANTS
@@ -106,21 +106,21 @@ dp.dl_save_w(dates, data_dir+'weather_4.csv') # save fourth part
 
 # formatting weather data
 paths=['weather_1.csv','weather_2.csv','weather_3.csv','weather_4.csv'] # files to be concatenated
-weather=dp.load_concat_w([data_dir+path for path in paths],idx='timestamp',cols=['tempm','hum','pressurem'],dates=True) # join all parts of weather data
+weather=dp.load_concat_w([data_dir+path for path in paths],idx='timestamp',cols=['tempm','hum','wspdm'],dates=True) # join all parts of weather data
 weather.fillna(method='bfill',inplace=True) # fill missiong values (for column with maximum missin it is still only 0.045% of all)
 
 # save selected weather parameters
 temp=weather['tempm']
 hum=weather['hum']
-pres=weather['pressurem']
+wind=weather['wspdm']
 dp.save(data=temp,path=data_dir+'temp.csv',idx='datetime')
 dp.save(data=hum,path=data_dir+'hum.csv',idx='datetime')
-dp.save(data=pres,path=data_dir+'pres.csv',idx='datetime')
+dp.save(data=wind,path=data_dir+'wind.csv',idx='datetime')
 
 # splitting, aggregating & saving weather data
 temp_dir=data_dir+'experiments/data/' # where to save
 for col in weather: # for each column=weather parameter
-	data_w=dp.de_mean(weather[col]) # standardize data
+	data_w,_=dp.de_mean(weather[col]) # standardize data
 	data_w=dp.resample(data=data_w, freq=48) # reshape to have time of day as columns
 	train_w,test_w=dp.train_test(data=data_w, test_size=0.255, base=7) # split into train & test sets
 	dp.save(data=train_w,path=temp_dir+col+'_train.csv',idx='date') # save train set
@@ -315,12 +315,14 @@ data=dp.load(path=data_dir+'data_all.csv', idx='datetime',cols='load',dates=True
 
 f,ax=plt.subplots()
 bins=np.arange(0.0, 5.15, 0.1)
-data.hist(ax=ax,bins=500,grid=False,edgecolor='k',xrot=90)
+data.hist(ax=ax,bins=500,grid=False,edgecolor='k',normed=True)
+data.plot(ax=ax,kind='kde',lw=3,style='--',color='red')
 ax.set_xlim(0,5.1)
 ax.tick_params(labelsize=16)
 ax.set_xticks(bins)
+ax.set_xticklabels(labels=bins,rotation='vertical')
 ax.set_xlabel('Load (kW)',fontsize=18)
-ax.set_ylabel('Number of half-hour intervals',fontsize=18)
+ax.set_ylabel('Normalized number of half-hour intervals',fontsize=18)
 
 # histogram BC
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
@@ -328,56 +330,67 @@ data=dp.load(path=data_dir+'data_bc.csv', idx='datetime',cols='load',dates=True)
 
 f,ax=plt.subplots()
 bins=np.arange(-2.6, 2.05, 0.1)
-data.hist(ax=ax,bins=500,grid=False,edgecolor='k',xrot=90)
+data.hist(ax=ax,bins=500,grid=False,edgecolor='k',normed=True)
+data.plot(ax=ax,kind='kde',lw=3,style='--',color='red')
+ax.set_xlim(-2.6,2.0)
 ax.tick_params(labelsize=16)
 ax.set_xticks(bins)
+ax.set_xticklabels(labels=bins,rotation='vertical')
 ax.set_xlabel('Load (Box-Cox transformed)',fontsize=18)
-ax.set_ylabel('Number of half-hour intervals',fontsize=18)
+ax.set_ylabel('Normalized number of half-hour intervals',fontsize=18)
 
 
 # weather data
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-temp=dp.load(path=data_dir+'temp.csv', idx='datetime', cols='temp', dates=True)
+temp=dp.load(path=data_dir+'temp.csv', idx='datetime', cols='tempm', dates=True)
 hum=dp.load(path=data_dir+'hum.csv', idx='datetime', cols='hum', dates=True)
-pres=dp.load(path=data_dir+'pres.csv', idx='datetime', cols='pres', dates=True)
+wind=dp.load(path=data_dir+'wind.csv', idx='datetime', cols='wspdm', dates=True)
 
 f,ax=plt.subplots(nrows=3,ncols=1,sharex=True)
 temp.plot(ax=ax[0])
 hum.plot(ax=ax[1])
-pres.plot(ax=ax[2])
+wind.plot(ax=ax[2])
 ax[2].minorticks_off()
-#xlabels=[item.get_text()[:4] for item in ax[2].get_xticklabels()]
-#ax[2].set_xticklabels(xlabels)
-#ax[2].set_xticks([15*48+i*48*365 for i in range(0,4)])
-#ax[2].set_xticklabels(['Jan','Jan','Jan','Jan'],fontsize=16)
 for a in ax:a.tick_params(labelsize=16)
 ax[0].set_ylabel('Temperature ($^\circ$C)',fontsize=18)
 ax[1].set_ylabel('Humidity (%)',fontsize=18)
-ax[2].set_ylabel('Pressure (hPa)',fontsize=18)
-#for a in ax:a.set_ylabel('Load (kW)')
+ax[2].set_ylabel('Wind speed (km/h)',fontsize=18)
 tick_locs = [datetime.date(year=y,month=1,day=1) for y in [2007,2008,2009,2010]] +[ datetime.date(year=y,month=7,day=1) for y in [2007,2008,2009,2010]]
 tick_labels = map(lambda x: x.strftime('%b'), tick_locs)
 plt.xticks(tick_locs, tick_labels)
 plt.xlabel('Month',fontsize=18)
+
+# IMPUTATION RESULTS
+
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/imp/' # directory containing results of experiments
+ma=dp.load(path=exp_dir+'ma.csv', idx='method',dates=False) # load moving average results
+interpol=dp.load(path=exp_dir+'interpol.csv', idx='method',dates=False) # load moving average results
+other=dp.load(path=exp_dir+'other.csv', idx='method',dates=False) # load moving average results
+print(ma.to_latex(float_format='%.4f',index=False))
+print(interpol.to_latex(float_format='%.4f',index=False))
+print(other.to_latex(float_format='%.4f',index=False))
+
 
 # EXPERIMENTAL RESULTS
 
 measures={'SRMSE':pf.srmse,'MASE':partial(pf.mase,shift=48*7),'SMAPE':pf.smape,'SMAE':pf.smae,} # performance to consider
 
 # table for latex
-data_dir='C:/Users/SABA/Google Drive/mtsg/data/' # directory containing data 
-exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/arima/' # directory containing results of experiments
-true=dp.load(data_dir+'experiments/data/test.csv',idx='date',dates=True)
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/data/' # directory containing data 
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/ets_week/' # directory containing results of experiments
+true=dp.load(data_dir+'test.csv',idx='date',dates=True)
 results=pf.ev_dir(exp_dir, true, measures=measures) # evaluate performance of all results in directory
 results=results.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
-results=results[['SRMSE','MASE','SMAPE','SMAE']]
-print(results.to_latex(float_format='%.4f')) # make table for latex
+results=results[['wa','ha','dec','bc','SRMSE','MASE','SMAPE','SMAE']]
+print((1*results).to_latex(float_format='%.4f',index=False)) # make table for latex
 
 
 # best & worst day graphs for best method
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/data/' # directory containing data 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/arimax/' # directory containing results of experiments
-pred=dp.load(exp_dir+'ha,fregs,arimax.csv',idx='date',dates=True) # load best predictions
-true=dp.load(data_dir+'experiments/data/test.csv',idx='date',dates=True) # load true values for test set
+pred=dp.load(exp_dir+'ha,ets.csv',idx='date',dates=True) # load best predictions
+true=dp.load(data_dir+'test.csv',idx='date',dates=True) # load true values for test set
+res=dp.d2s(pred-true).sort_values(ascending=False).reset_index(drop=True) # ets residuals
 results=pf.ev_day(pred=pred,true=true,measures=measures) # evaluate performance for each day separately
 results=results.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
 results=results[['SRMSE','MASE','SMAPE','SMAE']]
@@ -397,4 +410,19 @@ ax[0].set_ylabel('Best day (kW)',fontsize=18)
 ax[1].set_ylabel('Worst day (kW)',fontsize=18)
 ax[1].legend(loc=0,labels=['true','forecast'],fontsize=16)
 plt.xlabel('Hour',fontsize=18)
+
+
+# aggregate errors
+data_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/data/' # directory containing data
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory containing results of experiments
+ets=dp.load(exp_dir+'ets/ha,ets.csv',idx='date',dates=True) # load best predictions
+arma=dp.load(exp_dir+'arima/ha,dec,arima.csv',idx='date',dates=True) # load best predictions
+armax=dp.load(exp_dir+'arimax/ha,fregs,arimax.csv',idx='date',dates=True) # load best predictions
+true=dp.load(data_dir+'test.csv',idx='date',dates=True)
+res=pd.DataFrame()
+res['ets']=dp.d2s(pred-true) # ets residuals
+res['arma']=dp.d2s(arma-true) # ets residuals
+res['armax']=dp.d2s(armax-true) # ets residuals
+res=pd.DataFrame({col: res[col].sort_values(ascending=False).values for col in res.columns.values})
+res.plot(logy=True)
 

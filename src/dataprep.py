@@ -109,16 +109,47 @@ def cut(data,freq=1440):
 	data=data[days.min().strftime('%Y-%m-%d'):days.max().strftime('%Y-%m-%d')] # preserve only complete days
 	return data
 
-# shifts data for time series forcasting
-def add_lags(data,lags=[1],nolag='targets'):
+# shifts data day-wise for time series forcasting
+def add_day_lags(data,lags=[1],nolag='targets'):
 	data_shifted={} # lagged dataframes for merging
 	lags=[0]+lags # zero lag for target values
 	for i in lags: # for each lag
 		label=nolag # label for target values
 		if i!=0:label='t-{}'.format(i) # labels for patterns
 		data_shifted[label]=data.shift(i) # add lagged dataframe
-	res=pd.concat(data_shifted.values(),axis='columns',keys=data_shifted.keys()) # merge lagged dataframes
+	res=pd.concat(data_shifted.values(),axis=1,keys=data_shifted.keys()) # merge lagged dataframes
 	return res.dropna() # TODO: handling missing values
+
+# shifts data for time series forcasting
+def add_lags(data,f_lags=[0],p_lags=[1],f_lab='Y',p_lab='X'):
+	fut=None
+	past=None
+	data=d2s(data) # dataframe to series
+	shifted={} # lagged dataframes for merging
+	for i in f_lags: shifted[i]=data.shift(-i) # add lagged dataframe
+	if shifted:
+		fut=pd.concat(shifted.values(),axis=1,keys=shifted.keys()) # merge lagged dataframes
+		fut.columns=pd.MultiIndex.from_product([[f_lab],fut.columns])
+	shifted={} # lagged dataframes for merging
+	for i in p_lags: shifted[-i]=data.shift(i) # add lagged dataframe
+	if shifted: 
+		past=pd.concat(shifted.values(),axis=1,keys=shifted.keys()) # merge lagged dataframes
+		past.columns=pd.MultiIndex.from_product([[p_lab],past.columns])
+	data=pd.concat([past,fut], axis=1).dropna()
+	data=data.reindex_axis(sorted(data.columns), axis=1)
+	return data
+	
+# construct dummy variables for days of the week and months
+def idx2dmy(data): 
+	days=pd.get_dummies(data.index.dayofweek)
+	days.index=data.index
+	days.columns=pd.MultiIndex.from_product([['day'],days.columns])
+	months=pd.get_dummies(data.index.month)
+	months.index=data.index
+	months.columns=pd.MultiIndex.from_product([['month'],months.columns])	
+	data=pd.concat([days,months,data],axis=1)
+	data=data.reindex_axis(sorted(data.columns), axis=1)
+	return data
 
 # order timesteps from the oldest
 def order(data):
@@ -126,9 +157,11 @@ def order(data):
 	return data
 	
 # split data into patterns & targets
-def X_Y(data,Y_lab='targets'):
-	X=data.select(lambda x:x[0] not in [Y_lab], axis=1) # everything not labelled "target" is a pattern, [0] refers to the level of multi-index
+def X_Y(data,Y_lab='Y'):
 	Y=data[Y_lab] # targets
+	X=data.drop(Y_lab,axis=1,level=0)
+	X=X.reindex_axis(sorted(X.columns), axis=1)
+	Y=Y.reindex_axis(sorted(Y.columns), axis=1)
 	return X, Y
 
 # split data into train & test sets
@@ -168,19 +201,19 @@ def tscv(data,test_size=369,batch=28):
 	tscv=[(data[:max(train)+1],data[min(test):max(test)+1]) for train,test in tscv_iter] # construct train and test sets according to iterator
 	return tscv
 
-# get mean and std from data
-def mean_std(data):
-	data_flat=d2s(data) # flatten DataFrame into a Series
-	mean=data_flat.mean() # get mean
-	std=data_flat.std() # get std
-	return mean,std
-
 # standardise data
-def de_std(data,mean,std):
-	return (data-mean)/std
+def de_std(data,args=None):
+	if args is None:
+		data_flat=d2s(data) # flatten DataFrame into a Series
+		mean=data_flat.mean() # get mean
+		std=data_flat.std() # get std
+	else:
+		mean,std=args
+	return (data-mean)/std,(mean,std)
 
 # invert standardisation
-def re_std(data,mean,std):
+def re_std(data,args):
+	mean,std=args
 	return (data*std)+mean
 
 # subtract average

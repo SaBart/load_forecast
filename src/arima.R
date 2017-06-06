@@ -142,15 +142,14 @@ for (col in names(train)){
 
 
 # EXPERIMENTS
-data<-load(paste(data_dir,'data_imp.csv', sep='')) # load train set
 
 data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/experiments/data/' # directory containing data
 exp_dir<-'C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory for the results of experiments
 
 train<-load(paste(data_dir,'train.csv', sep='')) # load train set
 test<-load(paste(data_dir,'test.csv', sep='')) # load test set
-wxregs_train<-lapply(list('tempm_train.csv','hum_train.csv','pressurem_train.csv'),function(x) load(paste(data_dir,x,sep=''))) # load weather covariates for train set
-wxregs_test<-lapply(list('tempm_test.csv','hum_test.csv','pressurem_test.csv'),function(x) load(paste(data_dir,x,sep=''))) # load weather covariates for test set
+wxregs_train<-lapply(list('tempm_train.csv','hum_train.csv','wspdm_train.csv'),function(x) load(paste(data_dir,x,sep=''))) # load weather covariates for train set
+wxregs_test<-lapply(list('tempm_test.csv','hum_test.csv','wspdm_test.csv'),function(x) load(paste(data_dir,x,sep=''))) # load weather covariates for test set
 
 train_day<-sapply(paste('D',seq(0,6),sep=''),function(x) NULL) # initialize empty list for train days
 test_day<-sapply(paste('D',seq(0,6),sep=''),function(x) NULL) # initialize empty list for test days
@@ -161,15 +160,15 @@ for (i in 0:6){
   day<-paste('D',i,sep='') # index name
   train_day[[day]]<-load(paste(data_dir,'train_',i,'.csv', sep='')) # load train day
   test_day[[day]]<-load(paste(data_dir,'test_',i,'.csv', sep='')) # load test day
-  wxregs_train_day[[day]]<-lapply(list('tempm_train_','hum_train_','pressurem_train_'),function(x) load(paste(data_dir,x,i,'.csv',sep=''))) # load weather for train day
-  wxregs_test_day[[day]]<-lapply(list('tempm_test_','hum_test_','pressurem_test_'),function(x) load(paste(data_dir,x,i,'.csv',sep=''))) # load weather for test day
+  wxregs_train_day[[day]]<-lapply(list('tempm_train_','hum_train_','wspdm_train_'),function(x) load(paste(data_dir,x,i,'.csv',sep=''))) # load weather for train day
+  wxregs_test_day[[day]]<-lapply(list('tempm_test_','hum_test_','wspdm_test_'),function(x) load(paste(data_dir,x,i,'.csv',sep=''))) # load weather for test day
 }
 
 params<-data.frame(row.names=c('np,','bc,','dec,','dec,bc,'),'bc'=c(FALSE,TRUE,FALSE,TRUE),'dec'=c(FALSE,FALSE,TRUE,TRUE))
 
 for (name in rownames(params)){
   
-  name<-''
+  name<-'dec,bc,'
   bc<-params[name,]$bc
   dec<-params[name,]$dec
 

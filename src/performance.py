@@ -60,15 +60,18 @@ def opt_shift(data, shifts=[48,48*7]):
 	return results
 
 # returns various measures/metrics/scores of goodness of fit 
-def ev(pred,true,label='test',measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=7*48)}):
+def ev(pred,true,label='test',parse_label=False,measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=7*48)}):
 	pred=no_neg(dp.d2s(pred)) # DataFrame to Series & replace negative values with zeros
 	true=dp.d2s(true) # DataFrame to Series
 	score={name:ms(pred=pred,true=true) for name,ms in measures.items()}
+	if parse_label: 
+		for par in re.split(r',',label):
+			if par: score[par]=True # for each parameter in the label create column and mark it True 
 	results=pd.DataFrame(data=score,index=[label]) # convert dictionary into a dataframe
 	return results
 
 # return performance measures for all experiments in a directory
-def ev_dir(pred_dir,true,measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=7*48)}):
+def ev_dir(pred_dir,true,measures={'SMAE':smae,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=7*48)}):
 	preds=[re.match(r'^[^0-9]*$', name).group(0) for name in os.listdir(pred_dir) if re.match(r'^[^0-9]*$', name)] # list of files for performance evaluation
 	merge_bases={re.split(r'[0-9]',name)[0] for name in os.listdir(pred_dir) if len(re.split(r'[0-9]',name))>1} # find all bases to merge
 	for base in merge_bases: # for each base to merge
@@ -78,7 +81,8 @@ def ev_dir(pred_dir,true,measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE'
 		pred=dp.load_merge(paths, idx='date', dates=True) # load and merge partitions
 		dp.save(data=pred, path=pred_dir+name, idx='date') # save merged predictions
 		preds+=[name] # add name to the list of files for acc
-	result=pd.concat([ev(pred=dp.load(path=pred_dir+name, idx='date', dates=True),true=true,label=re.sub(r'.csv', '', name),measures=measures) for name in preds])
+	result=pd.concat([ev(pred=dp.load(path=pred_dir+name, idx='date', dates=True),true=true,label=re.sub(r',?[^,]*.csv', '', name),parse_label=True,measures=measures) for name in preds],axis=0,join='outer') # merge results
+	result=result.fillna(value=False) # replace nans with False
 	return result
 
 def ev_day(pred,true,measures={'SMAE':smae,'RMSE':rmse,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=7*48)}):

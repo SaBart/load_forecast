@@ -460,6 +460,7 @@ df2 = pd.DataFrame({'A': ['A4', 'A5', 'A6', 'A7'],'B': ['B4', 'B5', 'B6', 'B7'],
 df = pd.DataFrame({'A': [0,1,2,3],'B': [4,5,6,7],'C': [8,9,10,11],'D': [12,13,14,15]})
 
 
+df=pd.Series(range(1000))
 
 	
 	for col in data:
@@ -937,3 +938,46 @@ def nan_bar(data):
 	nans.plot(kind='bar') # plot histogram of missing values,
 	return
 
+# REFORMAING IMPUTATION TABLE
+
+results=pd.DataFrame()
+for index, row in dp.load(path=data_dir + 'experiments/imp/imp.csv', idx='method').iterrows():
+	col_vals={}
+	for par in re.split(r',',index): 
+		if ':' in par: col_vals[par.split(':')[0]]=par.split(':')[1]
+		else: col_vals[par]=True
+	for col,value in row.iteritems(): col_vals[col]=value
+	result=pd.DataFrame(data=col_vals,index=[index]) 
+	results=pd.concat([results,result], axis=0, join='outer')
+results.index.name='method'
+results=results.fillna(value=False)
+results['SRMSE']=results['SRMSE']*100
+results['MASE']=results['MASE']*10000
+results['SMAPE']=results['SMAPE']*10000
+
+ma=results.loc[results['alg'] == 'ma']
+ma=ma.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
+ma=ma[['prep','weighting','window','SRMSE','MASE','SMAPE','SMAE']]
+dp.save(data=ma, path=data_dir + 'experiments/imp/ma.csv', idx='method')
+
+interpol=results.loc[results['alg'] == 'interpol']
+interpol=interpol.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
+interpol=interpol[['prep','option','SRMSE','MASE','SMAPE','SMAE']]
+dp.save(data=interpol, path=data_dir + 'experiments/imp/interpol.csv', idx='method')
+
+other=results.loc[~results['alg'].isin(['interpol','ma'])]
+other=other.sort_values(by=['SRMSE','MASE','SMAPE','SMAE'])
+other=other[['prep','alg','SRMSE','MASE','SMAPE','SMAE']]
+dp.save(data=other, path=data_dir + 'experiments/imp/other.csv', idx='method')	
+
+
+X=data.select(lambda x:x[0] not in [Y_lab], axis=1) # everything not labelled "target" is a pattern, [0] refers to the level of multi-index
+	X=data[data.columns.drop(labels=[Y_lab],level=0)]
+	data.loc[idx[:,~data.columns.get_level_values(0).isin([ts])], :]
+	
+def X_Y(data,Y_lab='targets'):
+	Y=data[Y_lab] # targets
+	X=data.drop(Y_lab,axis=1,level=0)
+	X=X.reindex_axis(sorted(X.columns), axis=1)
+	Y=Y.reindex_axis(sorted(Y.columns), axis=1)
+	return X, Y
