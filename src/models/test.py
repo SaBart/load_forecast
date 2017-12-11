@@ -452,8 +452,13 @@ def cut_data(data,steps=1):
 	
 	
 	
-	
-df1 = pd.DataFrame({'A': ['A0', 'A1', 'A2', 'A3'],'B': ['B0', 'B1', 'B2', 'B3'],'C': ['C0', 'C1', 'C2', 'C3'],'D': ['D0', 'D1', 'D2', 'D3']}, index=[0, 1, 2, 3])
+measures={'SRMSE':pf.srmse} # performance to consider	
+pred = pd.DataFrame({'A': list(range(5))*3,'B': list(range(5))*3,'C': list(range(5))*3,'D': list(range(5))*3})
+new=pd.DataFrame({'A': [1.5],'B': [2.5],'C': [3.5],'D': [1.5]})
+pred=pd.concat([pred,new]).reset_index(drop=True)
+
+
+true = pd.DataFrame({'A': [1]*16,'B': [2]*16,'C': [3]*16,'D': [1]*16})
 
 df2 = pd.DataFrame({'A': ['A4', 'A5', 'A6', 'A7'],'B': ['B4', 'B5', 'B6', 'B7'],'C': ['C4', 'C5', 'C6', 'C7'],'D': ['D4', 'D5', 'D6', 'D7']},index=[4, 5, 6, 7])
 
@@ -981,3 +986,115 @@ def X_Y(data,Y_lab='targets'):
 	X=X.reindex_axis(sorted(X.columns), axis=1)
 	Y=Y.reindex_axis(sorted(Y.columns), axis=1)
 	return X, Y
+
+
+
+
+
+loss.plot()
+
+	
+	T_X,T_Y=dp.X_Y(data=T,Y_lab='targets') # create patterns & targets in the correct format
+	V_X,V_Y=dp.X_Y(data=V,Y_lab='targets') # patterns for forecasting
+
+
+
+perf,loss=ev(train,test,model=model,prep=dp.de_mean,postp=dp.re_mean) # evaluate network
+
+
+
+
+batch=28 # batch size for cross validation
+
+model=nn(n_in=48, n_out=48, n_hid=100,dropout=0.1,hid_act='sigmoid',out_act='softmax',opt='rmsprop') # compile neural network
+pred=pd.DataFrame() # dataframe for predictions
+loss=pd.DataFrame() # dataframe for loss function
+for i in range(0,len(test),batch): # for each batch
+	if (len(test)-i)<batch: val_size=len(test)-i # not enough observation for complete batch
+	else: val_size=batch # smaller batch 
+	T=pd.concat([train,test[:i+val_size]]) # add new batch to train test
+	mean,std=dp.mean_std(T[:len(T)-val_size]) # get mean and std only from train set
+	T=dp.z_val(data=T,mean=mean,std=std) # standardize data
+	T=dp.add_lags(data=T, lags=[7], nolag='targets') # add lags
+	V=T[len(T)-val_size:] # build validation set
+	T=T[:len(T)-val_size] # build train set
+	T_X,T_Y=dp.X_Y(data=T,Y_lab='targets') # create patterns & targets in the correct format
+	V_X,V_Y=dp.X_Y(data=V,Y_lab='targets') # patterns for forecasting
+	#model.fit(T_X.as_matrix(), T_Y.as_matrix(), nb_epoch=100, batch_size=28,verbose=2,validation_data=(V_X.as_matrix(),V_Y.as_matrix()),callbacks=[stop]) # train neural network
+	hist=model.fit(T_X.as_matrix(), T_Y.as_matrix(), nb_epoch=100, batch_size=100,verbose=2,validation_data=(V_X.as_matrix(),V_Y.as_matrix())) # train neural network
+	V_pred=pd.DataFrame(model.predict(V_X.as_matrix()),index=V_Y.index,columns=V_Y.columns) # forecasts for the next batch
+	V_pred=dp.z_inv(data=V_pred, mean=mean, std=std) # de-standardize data 
+	pred=pd.concat([pred,V_pred]) # add new predictions
+	new_loss=pd.DataFrame(hist.history) # new loss
+	loss=pd.concat([loss,new_loss],axis=0,ignore_index=True) # append to old loss
+pf.ev(pred=pred, true=true, label='nn', measures=measures) # evaluate performance
+loss.plot()
+
+
+
+
+
+
+dp.save(data=pred, path=exp_dir+'nn.csv', idx='date')
+
+
+
+
+
+
+
+data=dp.add_lags(data=data, lags=[1], nolag='targets') # add lagged observations
+
+
+
+# set grid search parameters and ranges
+grid_space={'n_hidden':[10,20,30],
+			'nb_epoch':[500,1000,1500,2000],
+			'batch_size':[1,5,10,20]
+		}
+
+for i in range(1,6): # optimize for number of time steps
+	X,Y=dp.split_X_Y(dp.shift(load_with_nans,n_shifts=i,shift=1).dropna()) # create patterns & targets in the correct format
+	X=dp.order(X) # put timesteps in the correct order starting from the oldest
+	grid_space['n_in']=[X.shape[1]] # workaround for enabling varying pattern lengths corresponding to the number of time steps
+	model=KerasRegressor(build_fn=create_model,verbose=0) # create model template
+	grid_setup = GridSearchCV(estimator=model, param_grid=grid_space, cv=TimeSeriesSplit(n_splits=3),n_jobs=1, scoring=make_scorer(r2_score,multioutput='uniform_average'), verbose=10) # set up the grid search
+	grid_result = grid_setup.fit(X.as_matrix(), Y.as_matrix()) # fit best parameters
+	# summarize results
+	print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_)) # print best parameters
+	means = grid_result.cv_results_['mean_test_score']
+	stds = grid_result.cv_results_['std_test_score']
+	params = grid_result.cv_results_['params']
+	for mean, stdev, param in zip(means, stds, params):	print("%f (%f) with: %r" % (mean, stdev, param)) # print all sets of parameters
+
+plt.plot(grid_result.best_estimator_.predict(X.as_matrix())[0])
+
+f,ax=plt.subplot()
+
+
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/es_week/' # directory containing results of experiments
+
+dp.merge_dir_files(exp_dir)
+
+# aggregate errors
+exp_dir='C:/Users/SABA/Google Drive/mtsg/data/experiments/' # directory containing results of experiments
+ets=dp.load(exp_dir+'ets/ha,ets.csv',idx='date',dates=True) # load best predictions
+arma=dp.load(exp_dir+'arima/ha,dec,arima.csv',idx='date',dates=True) # load best predictions
+armax=dp.load(exp_dir+'arimax/ha,fregs,arimax.csv',idx='date',dates=True) # load best predictions
+res=pd.DataFrame()
+res['ets']=dp.d2s(pred-true) # ets residuals
+res['arma']=dp.d2s(arma-true) # ets residuals
+res['armax']=dp.d2s(armax-true) # ets residuals
+res=pd.DataFrame({col: res[col].sort_values(ascending=False).values for col in res.columns.values})
+res.plot(logy=True)
+
+
+# computes min & mean rank according to performance measures
+def rank(data):
+	sum_perf=data.sum(axis='columns') # sum performance measures
+	data['mean_rank']=data.rank(method='dense',ascending=True).mean(axis='columns') # add column with mean rank
+	data['min_rank']=data.rank(method='dense',ascending=True).min(axis='columns') # add column with mean rank
+	data['sum']=sum_perf # add sum column
+	data=data.sort_values(by=['sum','mean_rank','min_rank']) # sort by rank
+	#data=data.drop(['sum'],axis='columns') # remove unnecessary columns
+	return data

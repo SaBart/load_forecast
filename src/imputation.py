@@ -9,15 +9,15 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 from copy import deepcopy
 from functools import partial
-from itertools import product
 from tqdm import tqdm
 
 # impute missing values using R
 def imp(data,alg,freq=1440,**kwargs):
+	data=dp.d2s(data) # convert dataframes to series
 	pandas2ri.activate() # activate connection
 	ts=ro.r.ts # R time series
 	result=pandas2ri.ri2py(alg(ts(ro.FloatVector(data.values),frequency=freq),**kwargs)) # get results of imputation from R
-	data=pd.Series(index=data.index,columsn=data.columns,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
+	data=pd.Series(index=data.index,name=data.name,data=np.reshape(result,newshape=data.shape, order='C')) # construct DataFrame using original index and columns
 	pandas2ri.deactivate() # deactivate connection
 	return data
 
@@ -86,7 +86,7 @@ def opt_imp(data,methods,n_iter=10,freq=1440,measures={'SMAE':pf.smae,'RMSE':pf.
 			name=method['name'] # get name
 			alg=method['alg'] # get algorithm
 			opt=method['opt'] # get options
-			for kwargs in o2k(opt):	# for all combinations of kwargs
+			for kwargs in dp.dol2lod(opt):	# for all combinations of kwargs
 				print(str(i)+':',kwargs) # progress update
 				data_imp=pd.Series(index=data_out.index,data=np.reshape(pandas2ri.ri2py(alg(data_out_ts,**kwargs)),newshape=data_out.shape, order='C')) # get results of imputation from R & construct DataFrame using original index and columns
 				#data_imp=imp(data=data_out,alg=alg,**kwargs) # impute data with said methods
@@ -98,5 +98,3 @@ def opt_imp(data,methods,n_iter=10,freq=1440,measures={'SMAE':pf.smae,'RMSE':pf.
 	pandas2ri.deactivate() # deactivate connection
 	return sum(results)/n_iter
 
-def o2k(options):
-	return [{kw:arg for kw,arg in comb}for comb in product(*[[(kw,arg) for arg in args] for kw,args in options.items()])]

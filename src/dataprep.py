@@ -1,5 +1,7 @@
 # DATA PROCESSING METHODS
 
+import os as os
+import re as re
 import numpy as np
 import pandas as pd
 import csv
@@ -8,6 +10,7 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 from json import loads
 from urllib.request import urlopen
+from itertools import product
 
 # loads load profiles
 def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumption.csv'):
@@ -19,11 +22,32 @@ def load_lp(path='C:/Users/SABA/Google Drive/mtsg/data/household_power_consumpti
 	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
 	return data
 
+# laod dataport loads
+def load_dp(path):
+	data=pd.read_csv(path,header=0,sep=",", index_col='local_15min', usecols=['local_15min','use'],na_values=['?'], parse_dates=True) # read csv
+	data.columns=['load'] # rename columns
+	data.index.name='local' # rename index
+	data=data['load'] # convert the only important column to series
+	data=data.reindex(pd.date_range(start=data.index.min(), end=data.index.max(),freq='15min'),fill_value=np.NaN) # add nans in case of missing entries
+	data.index=data.index-pd.Timedelta(minutes=15) # subtract one minute to preserve consistency of dates
+	if not data.index.is_monotonic_increasing: data.sort_index(inplace=True) # sort dates if necessary
+	return data
+
+
 # loads file
 def load(path,idx='date',cols=[],dates=False):
 	data=pd.read_csv(path,header=0,sep=",",index_col=idx,parse_dates=dates) # non timestamp index
 	if cols:data=data[cols] # extract only wanted columns
+	if len(data.columns)==1:data=data.squeeze() # transform dataframe to series
 	return data
+
+# load multiple files and merge them
+def load_merge(fol,paths,idx='date',cols=[],dates=False,axis=0):
+	if axis==0: # merge on rows
+		data=pd.concat([load(fol+path, idx=idx,cols=cols, dates=dates) for path in paths], axis=axis) # load all dataframes into one
+	else: # merge on columns
+		data=pd.concat([d2s(load(fol+path, idx=idx,cols=cols, dates=dates)) for path in paths], axis=axis,keys=[re.sub(pattern=r'\.csv', repl='',string=path) for path in paths]) # load all dataframes into one
+	return data	
 
 # saves data to csv
 def save(data,path,idx=None):
@@ -35,6 +59,9 @@ def save_dict(dic,path,idx=None):
 	for key,value in dic.items():
 		save(data=value,path=path+str(key)+'.csv',idx=idx) # save data
 	return
+
+def full(data):
+	return d2s(data).isnull().sum()==0
 
 # downloads one day worth of weather data
 def dl_day(date):
@@ -58,7 +85,7 @@ def dl_save_w(dates,path):
 			for o in obs: # for each observation
 				o.pop('utcdate',None) # remove utcdate entry
 				date=o.pop('date',None) # get date entry (it is a dictionary, extracting values will follow)
-				if not date is None:
+				if not date is None: # format date
 					o['timestamp']='{}-{}-{} {}:{}'.format(date['year'],date['mon'],date['mday'],date['hour'],date['min'])
 				writer.writerow(o)
 	return			
@@ -67,6 +94,7 @@ def dl_save_w(dates,path):
 def split_cols(data):
 	return {col:data[col].unstack() for col in data.columns} # return a dictionary of dataframes each with values from only one column of original dataframe and key equal to column name	 
 
+# splid dataframe and save each column as separate file
 def split_cols_save(data,paths):
 	for (col,path) in zip(data.columns,paths): # for each pair of a column and a path 
 		save(data[col].unstack(),path) # save formatted column under the path
@@ -82,14 +110,16 @@ def load_concat_w(paths,idx='timestamp',cols=['tempm','hum','pressurem'],dates=F
 # combines minute time intervals into half-hour time intervals
 def resample(data,freq=1440):
 	data=cut(data=data,freq=freq) # remove incomplete first and last days
-	data=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
+	if not data.empty: data=data.resample(rule='30Min',closed='left',label='left').mean() # aggregate into 30min intervals
 	return s2d(data)
 
-# flattens data, converts columns into a multiindex level
+# flattens dataframes into series
 def d2s(data):
-	if not isinstance(data, pd.Series):
-			data=data.stack(dropna=False) # if not Series (already flat) then flatten
-			data.index=pd.to_datetime(data.index.get_level_values(0).astype(str)+' '+ data.index.get_level_values(1),format='%Y-%m-%d %H%M')
+	if not isinstance(data, pd.Series): # if not Series (already flat)
+			if len(data.columns)==1: data=data.squeeze() # already flat
+			else:
+				data=data.stack(dropna=False).squeeze() # dataframe to series
+				data.index=pd.to_datetime(data.index.get_level_values(0).astype(str)+' '+ data.index.get_level_values(1),format='%Y-%m-%d %H%M') # format datetime index
 	return data
 	
 # invert d2s operation
@@ -106,10 +136,22 @@ def s2d(data):
 def cut(data,freq=1440):
 	counts=data.isnull().resample(rule='1D',closed='left',label='left').count() # first replace nans to include in count then count
 	days=counts[counts>=freq].index # complete days
-	data=data[days.min().strftime('%Y-%m-%d'):days.max().strftime('%Y-%m-%d')] # preserve only complete days
+	if len(days)>0:data=data[days.min().strftime('%Y-%m-%d'):days.max().strftime('%Y-%m-%d')] # preserve only complete days
+	else: data=pd.DataFrame()
 	return data
 
-# shifts data day-wise for time series forcasting
+# merge forecasts for week-adjusted data
+def merge_dir_files(pred_dir):
+	merge_bases={re.split(r'_[0-9]',name)[0] for name in os.listdir(pred_dir) if len(re.split(r'_[0-9]',name))>1} # find all bases to merge
+	for base in merge_bases: # for each base to merge
+		paths=[base + '_' +str(i) +'.csv' for i in range(7)] # make relevant paths
+		pred=load_merge(fol=pred_dir,paths=paths, idx='date', dates=True, axis=0) # load and merge partitions
+		name ='wa,'+ base+'.csv' # create name for merged predictions
+		save(data=pred, path=pred_dir+name, idx='date') # save merged predictions
+		for path in paths: os.remove(path)
+	return
+
+# shifts data day-wise for time series forecasting
 def add_day_lags(data,lags=[1],nolag='targets'):
 	data_shifted={} # lagged dataframes for merging
 	lags=[0]+lags # zero lag for target values
@@ -141,14 +183,16 @@ def add_lags(data,f_lags=[0],p_lags=[1],f_lab='Y',p_lab='X'):
 	
 # construct dummy variables for days of the week and months
 def idx2dmy(data): 
-	days=pd.get_dummies(data.index.dayofweek)
-	days.index=data.index
-	days.columns=pd.MultiIndex.from_product([['day'],days.columns])
-	months=pd.get_dummies(data.index.month)
-	months.index=data.index
-	months.columns=pd.MultiIndex.from_product([['month'],months.columns])	
-	data=pd.concat([days,months,data],axis=1)
-	data=data.reindex_axis(sorted(data.columns), axis=1)
+	# dummies for day of the week
+	days=pd.get_dummies(data.index.dayofweek) #get dummies
+	days.index=data.index # copy index
+	days.columns=pd.MultiIndex.from_product([['day'],days.columns]) # construct columns
+	# dummies for months
+	months=pd.get_dummies(data.index.month) #get dummies
+	months.index=data.index # copy index
+	months.columns=pd.MultiIndex.from_product([['month'],months.columns])  # construct columns	 
+	data=pd.concat([days,months,data],axis=1) # merge dataframes
+	data=data.reindex_axis(sorted(data.columns), axis=1) # sort columns
 	return data
 
 # order timesteps from the oldest
@@ -159,14 +203,17 @@ def order(data):
 # split data into patterns & targets
 def X_Y(data,Y_lab='Y'):
 	Y=data[Y_lab] # targets
-	X=data.drop(Y_lab,axis=1,level=0)
-	X=X.reindex_axis(sorted(X.columns), axis=1)
-	Y=Y.reindex_axis(sorted(Y.columns), axis=1)
+	X=data.drop(Y_lab,axis=1,level=0) # drop Ys from inputs
+	X=X.reindex_axis(sorted(X.columns), axis=1) # order columns
+	Y=Y.reindex_axis(sorted(Y.columns), axis=1) # order columns
 	return X, Y
 
 # split data into train & test sets
 def train_test(data, base=7,test_size=0.255): # in time series analysis order of samples usually matters, so no shuffling of samples
-	split_idx=round_d((1-test_size)*len(data)) # calculate the index that splits dataset into train, test
+	if test_size<1:
+		split_idx=round_d((1-test_size)*len(data)) # calculate the index that splits dataset into train, test
+	else:
+		split_idx=round_d(len(data)-test_size) 	
 	train,test =data[:split_idx],data[split_idx:] # split data into train & test sets
 	return train,test
 
@@ -177,13 +224,7 @@ def round_rem(total,base=7,test_size=0.255):
 # split data into n datasets (according to weekdays)
 def split(data,nsplits=7): 
 	return {i:data.iloc[i::nsplits] for i in range(nsplits)} # return as a dictionary {offset:data}
-	
-def load_merge(paths,idx='date',cols=[],dates=True):
-	data=pd.concat([load(path, idx=idx,cols=cols, dates=dates) for path in paths], axis=0) # load all dataframes into one
-	if not data.index.is_monotonic_increasing:
-		data.sort_index(inplace=True) # order index
-	return data	
-	
+		
 # rounds down to the nearest multiple of base
 def round_d(x,base=7):
 	return base*int(x/base)
@@ -200,6 +241,11 @@ def tscv(data,test_size=369,batch=28):
 	tscv_iter=[(np.arange(i),i+np.arange(min(batch,len(data)-i))) for i in range(len_train,len(data),batch)] # construct the iterator, a list of tuples, each containing train & test indices
 	tscv=[(data[:max(train)+1],data[min(test):max(test)+1]) for train,test in tscv_iter] # construct train and test sets according to iterator
 	return tscv
+
+# grid search parameter generator
+def dol2lod(dol):
+	return [{kw:arg for kw,arg in comb}for comb in product(*[[(kw,arg) for arg in args] for kw,args in dol.items()])] #dictionary of lists to list of dictionaries
+
 
 # standardise data
 def de_std(data,args=None):
@@ -228,7 +274,7 @@ def de_mean(data,avg_days=None):
 def re_mean(data,avg_days):	
 	return data.groupby(by=data.index.weekday).apply(lambda x: x+avg_days.loc[x.name])
 	
-
+# seseasonalisation
 def de_seas(data,seas=None,window=7):
 	if seas is None:
 		pandas2ri.activate() # activate connection
@@ -248,10 +294,11 @@ def de_seas(data,seas=None,window=7):
 		s.index=data.index # change index to alogn dataframes
 		data=data-s # de-seasonalize data
 	return data,seas
-	
+
+# reseasonalisation
 def re_seas(data,seas):
 	s=seas.tail(len(data)) # get seasonality of previous batch
-	s.index=data.index	# change index to alogn dataframes
+	s.index=data.index	# change index to align dataframes
 	return data+s # re-seasonalize data
-	
+
 	
