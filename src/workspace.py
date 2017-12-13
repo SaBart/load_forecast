@@ -412,6 +412,7 @@ dp.save(data=corr, path=data_dir+'corr.csv')
 import csv
 import operator
 from itertools import groupby
+import random
 
 header=''
 
@@ -429,16 +430,21 @@ for key, rows in groupby(csv.reader(open(path)),
 
 
 source='C:/Users/SABA/tmp/15min/raw/'
-target='C:/Users/SABA/tmp/15min/data/'
+target='C:/Users/SABA/tmp/15min/data/sample/'
 hids=[os.path.splitext(filename)[0] for filename in os.listdir(source) if len(dp.load_dp(source+filename))>=15*24*28*13] # sufficiently long datasets
 
-for hid in hids: # for each house id
+random.shuffle(hids) # random sample
+
+for hid in hids[:10]: # for each house id
 	print(hid)
-	data=dp.load_dp(source+hid+'.csv')
+	data=dp.load_dp(source+hid+'.csv') # load data
+	data[data<0]=np.nan # replace negative values with nans
 	if not dp.full(data):
-		data.fillna(data.ewm(alpha=0.5,ignore_na=True).mean())
-		data=imp.imp(data, alg=impts.na_seadec, freq=4*24, **{'algorithm':'ma','weighting':'exponential','k':2}) # impute the whole dataset using three best methods of imputation
+		data=data.fillna(data.ewm(alpha=0.5,ignore_na=True).mean()) # impute data
+		print(len(data[data<0]))
+		#data=imp.imp(data, alg=impts.na_seadec, freq=4*24, **{'algorithm':'ma','weighting':'exponential','k':2}) # impute the whole dataset using three best methods of imputation
 	data=dp.resample(data,freq=4*24) # aggregate 15min to half-hours
+	print(dp.full(data))
 	if data.empty: continue
 	new_dir=target+hid+'/'
 	if not os.path.exists(new_dir):

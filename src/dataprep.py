@@ -134,7 +134,8 @@ def s2d(data):
 	
 # remove incomplete first and last days
 def cut(data,freq=1440):
-	counts=data.isnull().resample(rule='1D',closed='left',label='left').count() # first replace nans to include in count then count
+	counts=data.groupby(data.index.date).count() # count non-nan values
+	#counts=data.isnull().resample(rule='1D',closed='left',label='right').count() 
 	days=counts[counts>=freq].index # complete days
 	if len(days)>0:data=data[days.min().strftime('%Y-%m-%d'):days.max().strftime('%Y-%m-%d')] # preserve only complete days
 	else: data=pd.DataFrame()
