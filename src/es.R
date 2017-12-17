@@ -1,3 +1,4 @@
+
 library('forecast')
 source('dataprep.R')
 
@@ -49,7 +50,6 @@ es_v<-function(train,test,batch=7,freq=7,box_cox=FALSE,dec=FALSE){
   }
   return(test_pred)
 }
-
 # NO PREPROCESSING
 
 data_dir<-'C:/Users/SABA/Google Drive/mtsg/data/experiments/data/' # directory containing data
@@ -179,7 +179,7 @@ for (i in 0:6){ # for each day
 
 
 
-data_dir<-'C:/Users/SABA/tmp/15min/data/' # directory containing data
+data_dir<-'C:/Users/SABA/tmp/15min/data/sample/' # directory containing data
 exp_dir<-'C:/Users/SABA/tmp/15min/results/es/' # directory for the results of experiments
 
 total=length(dir(path = data_dir, full.names = FALSE, no..=TRUE))

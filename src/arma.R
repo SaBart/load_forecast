@@ -180,7 +180,7 @@ for (name in rownames(params)){ # for each parameter combination
   save(data=test_pred_h,path=paste(exp_dir,'arma/',name,'arma','.csv',sep='')) # write results
   
   # ha
-  test_pred_v<-arma_v(train,test,batch=7,freq=28,dec=dec,bc = bc) # predict values
+  test_pred_v<-arma_v(train,test,batch=28,freq=7,dec=dec,bc = bc) # predict values
   save(data=test_pred_v,path=paste(exp_dir,'arma/','ha,',name,'arma','.csv',sep='')) # write results
   
   # wa
@@ -204,7 +204,7 @@ for (name in rownames(params)){ # for each parameter combination
   save(data=test_pred_hf,path=paste(exp_dir,'armax/',name,'fregs,armax.csv',sep='')) # write results
   
   # ha
-  test_pred_vf<-arma_v(train,test,batch=7,freq=365.25,freqs=c(7),ord=3,dec=dec,bc = bc) # horizontal prediction
+  test_pred_vf<-arma_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=3,dec=dec,bc = bc) # horizontal prediction
   save(data=test_pred_vf,path=paste(exp_dir,'armax/','ha,',name,'fregs,armax.csv',sep='')) # write results
   
   
@@ -244,3 +244,31 @@ for (name in rownames(params)){ # for each parameter combination
   save(data=test_pred_vfw,path=paste(exp_dir,'armax/','ha,',name,'fregs,wregs,armax.csv',sep='')) # write results
 }
 
+
+
+data_dir<-'C:/Users/SABA/tmp/15min/data/sample/' # directory containing data
+exp_dir<-'C:/Users/SABA/tmp/15min/results/armax/' # directory for the results of experiments
+
+total=length(dir(path = data_dir, full.names = FALSE, no..=TRUE))
+i=0
+
+for (d in dir(path = data_dir, full.names = FALSE, no..=TRUE)){
+  i=i+1
+  cat(d,':',i/total*100,'%\n',sep='')
+  train<-load(path=paste(data_dir,d,'/train.csv',sep=''),idx='date') # load train set
+  test<-load(path=paste(data_dir,d,'/test.csv',sep=''),idx='date') # load test set
+  test_pred_v<-arma_v(train,test,batch=28,freq=7,dec=TRUE,bc = FALSE) # predict values
+  save(data=test_pred_v,path=paste(exp_dir,d,'.csv',sep='')) # write results
+}
+
+
+
+
+for (d in dir(path = data_dir, full.names = FALSE, no..=TRUE)){
+  i=i+1
+  cat(d,':',i/total*100,'%\n',sep='')
+  train<-load(path=paste(data_dir,d,'/train.csv',sep=''),idx='date') # load train set
+  test<-load(path=paste(data_dir,d,'/test.csv',sep=''),idx='date') # load test set
+  test_pred_vf<-arma_v(train,test,batch=28,freq=365.25,freqs=c(7),ord=3,dec=FALSE,bc = FALSE) # horizontal prediction
+  save(data=test_pred_vf,path=paste(exp_dir,d,'.csv',sep='')) # write results
+}

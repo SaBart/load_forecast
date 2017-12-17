@@ -96,6 +96,7 @@ def cv(train,test,model,epochs=100,restart=10,batch=28,mini_batch=50,f_lags=[i f
 	return pred,train_loss,val_loss
 
 
+# SLNs
 np.random.seed(0) # fix seed for reprodicibility
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/train_test/' # directory containing data 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data/sln/' # directory containing results of experiments
@@ -119,7 +120,7 @@ params={
 	}
 
 i=0
-# SLNs
+
 for kwargs in dp.dol2lod(params): # for each combination of parameters
 	i+=1
 	name=''
@@ -150,6 +151,7 @@ for kwargs in dp.dol2lod(params): # for each combination of parameters
 	dp.save(data=pred, path=exp_dir+name, idx='date') # save results
 
 
+# MLN
 np.random.seed(0) # fix seed for reprodicibility
 data_dir='C:/Users/SABA/Google Drive/mtsg/data/train_test/' # directory containing data 
 exp_dir='C:/Users/SABA/Google Drive/mtsg/data//mln/' # directory containing results of experiments
@@ -174,7 +176,7 @@ params={
 	}
 		
 i=0
-# MLN
+
 for kwargs in dp.dol2lod(params):
 	i+=1
 	name=''
@@ -206,6 +208,57 @@ for kwargs in dp.dol2lod(params):
 	dp.save(data=pred, path=exp_dir+name, idx='date')
 	
 #pf.ev(pred=pred, true=true, label='mln', measures=measures) # evaluate performance of individual network
+
+
+
+
+# SLNs
+np.random.seed(0) # fix seed for reprodicibility
+
+data_dir='C:/Users/SABA/tmp/15min/data/sample/'
+exp_dir='C:/Users/SABA/tmp/15min/results/sln/' # directory containing results of experiments
+measures={'SRMSE':pf.srmse,'MASE':partial(pf.mase,shift=48*7),'SMAPE':pf.smape,'SMAE':pf.smae,} # performance to consider
+ 
+for d in os.listdir(data_dir):
+	true=dp.load(path=data_dir+d+'/test.csv',idx='date',dates=True) # observations to forecast
+	train=dp.load(path=data_dir+d+'/train.csv', idx='date', dates=True) # load train set
+	test=dp.load(path=data_dir+d+'/test.csv', idx='date', dates=True) # load test set
+	
+	batch=28 # batch size for cross validation
+	# parameters for cross-validation
+	params={
+		'hidden':[100],
+		'lags':[[i+1 for i in range(72)]+[i+1 for i in range(48*6,48*7+24)]],
+		'prep':['mean'],
+		'weather':[0],
+		'act':['sigmoid']
+		}
+
+	i=0
+	
+	for kwargs in dp.dol2lod(params): # for each combination of parameters
+		i+=1
+		model=partial(sln, n_hid=kwargs['hidden'],hid_act=kwargs['act'],out_act='linear',opt='adam') # construct model
+		# construct preprocessing functions
+		if kwargs['prep']=='dec':
+			prep=dp.de_seas
+			postp=dp.re_seas
+		if kwargs['prep']=='mean':
+			prep=dp.de_mean
+			postp=dp.re_mean
+		if kwargs['prep']=='none':
+			prep=None
+			postp=None
+		if kwargs['weather']:
+			W_T=weather_train
+			W_V=weather_test
+		else:
+			W_T=None
+			W_V=None
+			# start cross-validation
+		pred,train_loss,val_loss=cv(train=train,test=test,model=model,epochs=100,restart=10,batch=batch,mini_batch=64,f_lags=[i for i in range(48)],p_lags=kwargs['lags'],weather_train=W_T,weather_test=W_V,prep=prep,postp=postp)
+		dp.save(data=pred, path=exp_dir+d+'.csv', idx='date') # save results
+
 
 
 

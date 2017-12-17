@@ -83,7 +83,10 @@ def ev(true,pred,label='test',parse_label=False,measures={'SMAE':smae,'SRMSE':sr
 
 # return performance measures for all experiments in a directory
 def ev_dir(pred_dir,true,measures={'SMAE':smae,'SRMSE':srmse,'SMAPE':smape,'MASE':partial(mase,shift=7*48)}):
-	result=pd.concat([ev(pred=dp.load(path=pred_dir+name, idx='date', dates=True),true=true,label=re.sub(r',?[^,]*.csv', '', name),parse_label=True,measures=measures) for name in os.listdir(pred_dir)],axis=0,join='outer') # merge results
+	if os.listdir(true):
+		files=[os.path.splitext(file)[0] for file in os.listdir(pred_dir) if os.path.isfile(true+os.path.splitext(file)[0]+'/test.csv')] # files in both directories 
+		result=pd.concat([ev(pred=dp.load(path=pred_dir+file+'.csv', idx='date', dates=True),true=dp.load(path=true+file+'/test.csv',idx='date',dates=True),label=file,parse_label=False,measures=measures) for file in files],axis=0,join='outer') # merge results
+	else: result=pd.concat([ev(pred=dp.load(path=pred_dir+name, idx='date', dates=True),true=true,label=re.sub(r',?[^,]*.csv', '', name),parse_label=True,measures=measures) for name in os.listdir(pred_dir)],axis=0,join='outer') # merge results
 	result=result.fillna(value=False) # replace nans with False
 	return result
 

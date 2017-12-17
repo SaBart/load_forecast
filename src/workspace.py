@@ -28,7 +28,7 @@ results=pf.opt_shift(data_res,shifts=[48,7*48]) # find the best shift for naive 
 
 # IMPUTATION
 impts=importr('imputeTS') # package for time series imputation
-shift=60*24*7# the shift that performed the best
+shift=7*48# the shift that performed the best
 measures={'SMAE':pf.smae,'SRMSE':pf.srmse,'SMAPE':pf.smape,'MASE':partial(pf.mase,shift=shift)} # performance to consider
 
 random={} # params for random
@@ -438,10 +438,10 @@ random.shuffle(hids) # random sample
 for hid in hids[:10]: # for each house id
 	print(hid)
 	data=dp.load_dp(source+hid+'.csv') # load data
-	data[data<0]=np.nan # replace negative values with nans
+	data[data<=0]=np.nan # replace negative values with nans
 	if not dp.full(data):
 		data=data.fillna(data.ewm(alpha=0.5,ignore_na=True).mean()) # impute data
-		print(len(data[data<0]))
+		print(len(data[data<=0]))
 		#data=imp.imp(data, alg=impts.na_seadec, freq=4*24, **{'algorithm':'ma','weighting':'exponential','k':2}) # impute the whole dataset using three best methods of imputation
 	data=dp.resample(data,freq=4*24) # aggregate 15min to half-hours
 	print(dp.full(data))
@@ -455,3 +455,10 @@ for hid in hids[:10]: # for each house id
 	dp.save_dict(dic=dp.split(train,nsplits=7),path=new_dir+'train_',idx='date') # split train set according to weekdays and save each into a separate file
 	dp.save_dict(dic=dp.split(test,nsplits=7),path=new_dir+'test_',idx='date') # split test set according to weekdays and save each into a separate file
 
+
+
+
+pred_dir='C:/Users/SABA/tmp/15min/results/arma/'
+true_dir='C:/Users/SABA/tmp/15min/data/sample/'
+
+pf.ev_dir(pred_dir=pred_dir, true=true_dir)
